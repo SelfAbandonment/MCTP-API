@@ -102,3 +102,19 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Django media & collected static files
+media/
+staticfiles/
+static_root/
+
+# SQLite databases
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
