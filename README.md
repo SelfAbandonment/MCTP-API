@@ -84,7 +84,7 @@ MCTP-API/
 ├── requirements.txt       # 生产依赖
 ├── requirements-dev.txt   # 开发依赖
 ├── .env.example           # 环境变量模板
-├── .gitlab-ci.yml         # CI/CD 配置
+├── .gitcode/workflows/    # GitCode CI/CD 流水线配置
 └── .pre-commit-config.yaml
 ```
 
