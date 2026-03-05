@@ -8,38 +8,38 @@ on:
 
 jobs:
   lint:
-    runs-on: euleros-2.10.1
+    runs-on: ubuntu-latest
     steps:
-      - uses: checkout-action@0.0.1
+      - uses: actions/checkout@v4
       - name: Setup Python
-        uses: setup-python@0.0.1
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install ruff
-        run: cd repo_workspace && pip install ruff
+        run: pip install ruff
       - name: Ruff check
-        run: cd repo_workspace && ruff check .
+        run: ruff check .
       - name: Ruff format check
-        run: cd repo_workspace && ruff format --check .
+        run: ruff format --check .
 
   test:
-    runs-on: euleros-2.10.1
+    runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: checkout-action@0.0.1
+      - uses: actions/checkout@v4
       - name: Setup Python
-        uses: setup-python@0.0.1
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: cd repo_workspace && pip install -r requirements.txt
+        run: pip install -r requirements.txt
       - name: Django check
-        run: cd repo_workspace && python manage.py check
+        run: python manage.py check
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"
       - name: Run tests
-        run: cd repo_workspace && python manage.py test --verbosity=2
+        run: python manage.py test --verbosity=2
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"

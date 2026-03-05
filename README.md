@@ -7,7 +7,7 @@ MCTP 项目后端 API，基于 Django 6.0 构建。
 ### 1. 克隆仓库
 
 ```bash
-git clone https://gitcode.com/Mcreatopia/MCTP-API.git
+git clone https://github.com/SelfAbandonment/MCTP-API.git
 cd MCTP-API
 git checkout develop
 ```
@@ -84,7 +84,7 @@ MCTP-API/
 ├── requirements.txt       # 生产依赖
 ├── requirements-dev.txt   # 开发依赖
 ├── .env.example           # 环境变量模板
-├── .gitcode/workflows/    # GitCode CI/CD 流水线配置
+├── .github/workflows/     # GitHub Actions CI/CD 配置
 └── .pre-commit-config.yaml
 ```
 
