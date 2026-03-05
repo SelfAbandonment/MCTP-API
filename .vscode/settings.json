@@ -1,0 +1,39 @@
+{
+  // Python 环境
+  "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
+
+  // 格式化 & Lint
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Ruff 配置
+  "ruff.configurationPreference": "filesystemFirst",
+
+  // 编辑器通用
+  "editor.rulers": [120],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+
+  // 搜索排除
+  "search.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/node_modules": true,
+    "**/.ruff_cache": true,
+    "**/db.sqlite3": true
+  },
+
+  // 文件关联
+  "files.associations": {
+    "*.env": "dotenv",
+    "*.env.*": "dotenv"
+  }
+}
