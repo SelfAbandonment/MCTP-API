@@ -19,5 +19,12 @@ select = [
 ]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# Django 模板文件，未来会使用这些导入
+"*/admin.py" = ["F401"]
+"*/models.py" = ["F401"]
+"*/views.py" = ["F401"]
+"*/tests.py" = ["F401"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["mctp_api"]
