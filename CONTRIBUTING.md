@@ -43,6 +43,20 @@
 
 ## 🛠️ 开发环境设置
 
+### 一键初始化（推荐）
+
+```bash
+git clone https://github.com/SelfAbandonment/MCTP-API.git
+cd MCTP-API
+cp .env.example .env         # 编辑 .env 填入 SECRET_KEY
+make setup                   # 自动完成全部初始化
+```
+
+> Windows 用户需先安装 make：`choco install make` 或 `winget install GnuWin32.Make`
+
+<details>
+<summary>手动初始化（不使用 make）</summary>
+
 ```bash
 # 1. 克隆并进入项目
 git clone https://github.com/SelfAbandonment/MCTP-API.git
@@ -55,7 +69,6 @@ python -m venv .venv
 source .venv/bin/activate  # macOS/Linux
 
 # 3. 安装依赖
-pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
 # 4. 配置环境变量
@@ -70,17 +83,23 @@ pre-commit install --hook-type commit-msg
 python manage.py migrate
 ```
 
+</details>
+
 ## ✅ 提交前检查
 
 ```bash
-# 代码检查
+make lint          # 代码检查
+make format        # 代码格式化
+make test          # 运行测试
+make check         # Django 系统检查
+```
+
+或者手动执行：
+
+```bash
 ruff check .
 ruff format --check .
-
-# 运行测试
 python manage.py test
-
-# Django 检查
 python manage.py check
 ```
 
