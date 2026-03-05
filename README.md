@@ -48,9 +48,11 @@ python manage.py runserver
 
 ## 🔀 Git 工作流
 
-- **`main`** — 受保护的主分支，仅通过 MR 合并
+- **`main`** — 受保护的主分支，仅通过 PR 合并
 - **`develop`** — 开发分支，日常开发在此进行
 - **功能分支** — 从 `develop` 创建，命名格式：`feat/功能名`、`fix/bug名`
+
+> 详细贡献流程请查看 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ### Commit 规范
 
