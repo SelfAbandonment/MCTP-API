@@ -86,6 +86,16 @@ hooks: ## 安装 pre-commit hooks
 pre-commit: ## 手动运行 pre-commit
 	$(PYTHON) -m pre_commit run --all-files
 
+# -------------------- 文档同步 --------------------
+
+.PHONY: docs
+docs: ## 同步文档到 ShowDoc (增量)
+	$(PYTHON) scripts/sync_showdoc.py
+
+.PHONY: docs-force
+docs-force: ## 强制同步全部文档到 ShowDoc
+	$(PYTHON) scripts/sync_showdoc.py --force
+
 # -------------------- 清理 --------------------
 
 .PHONY: clean
@@ -108,6 +118,8 @@ help: ## 显示帮助信息
 	@echo   make format          代码格式化
 	@echo   make hooks           安装 Git Hooks
 	@echo   make pre-commit      手动运行 pre-commit
+	@echo   make docs            同步文档到 ShowDoc
+	@echo   make docs-force      强制全量同步文档
 	@echo   make clean           清理缓存
 	@echo   make help            显示此帮助
 

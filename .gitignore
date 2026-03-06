@@ -120,4 +120,4 @@ static_root/
 # OS files
 .DS_Store
 Thumbs.db
-scripts/sync_showdoc.py
+.showdoc_cache.json
