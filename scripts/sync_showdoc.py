@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -111,6 +112,30 @@ def _parse_manifest() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Content preprocessing (ShowDoc compatibility)
+# ---------------------------------------------------------------------------
+def _preprocess(content: str) -> str:
+    """Convert HTML elements unsupported by ShowDoc into plain Markdown.
+
+    - ``<details>/<summary>`` → ``### title``
+    - Strip ``</details>`` closing tags
+    """
+    # <summary>..text..</summary>  →  ### text
+    content = re.sub(
+        r"<details>\s*\n?",
+        "",
+        content,
+    )
+    content = re.sub(
+        r"\s*<summary>\s*(.+?)\s*</summary>\s*",
+        r"\n### \1\n",
+        content,
+    )
+    content = re.sub(r"\s*</details>\s*", "\n", content)
+    return content
+
+
+# ---------------------------------------------------------------------------
 # ShowDoc API
 # ---------------------------------------------------------------------------
 def _push_page(cat_name: str, page_title: str, page_content: str, order: int) -> bool:
@@ -164,6 +189,7 @@ def sync(force: bool = False) -> None:
 
     for idx, entry in enumerate(entries, 1):
         content = entry["path"].read_text(encoding="utf-8")
+        content = _preprocess(content)
         content_hash = _md5(content)
         cache_key = entry["rel"]
 
