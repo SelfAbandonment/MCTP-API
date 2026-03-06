@@ -3,8 +3,17 @@
 # Windows 用户需要安装 make (choco install make 或 winget install GnuWin32.Make)
 # ============================================================
 
-PYTHON = .venv/Scripts/python.exe
-PIP = .venv/Scripts/pip.exe
+# 自动检测操作系统，选择正确的虚拟环境路径
+ifeq ($(OS),Windows_NT)
+    PYTHON = .venv\Scripts\python.exe
+    PIP = .venv\Scripts\pip.exe
+    SHELL = cmd.exe
+    .SHELLFLAGS = /c
+else
+    PYTHON = .venv/bin/python
+    PIP = .venv/bin/pip
+endif
+
 MANAGE = $(PYTHON) manage.py
 
 # -------------------- 环境管理 --------------------
@@ -100,27 +109,26 @@ docs-force: ## 强制同步全部文档到 ShowDoc
 
 .PHONY: clean
 clean: ## 清理缓存文件
-	Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-	if (Test-Path .ruff_cache) { Remove-Item -Recurse -Force .ruff_cache }
+	$(PYTHON) -c "import shutil, pathlib; [shutil.rmtree(p) for p in pathlib.Path('.').rglob('__pycache__')]; shutil.rmtree('.ruff_cache', True)"
 
 # -------------------- 帮助 --------------------
 
 .PHONY: help
 help: ## 显示帮助信息
-	@echo MCTP-API 可用命令:
-	@echo.
-	@echo   make setup           一键初始化开发环境
-	@echo   make run             启动开发服务器
-	@echo   make migrate         执行数据库迁移
-	@echo   make makemigrations  生成迁移文件
-	@echo   make test            运行测试
-	@echo   make lint            代码检查
-	@echo   make format          代码格式化
-	@echo   make hooks           安装 Git Hooks
-	@echo   make pre-commit      手动运行 pre-commit
-	@echo   make docs            同步文档到 ShowDoc
-	@echo   make docs-force      强制全量同步文档
-	@echo   make clean           清理缓存
-	@echo   make help            显示此帮助
+	@echo MCTP-API Available Commands:
+	@echo ---------------------------------------------------------------
+	@echo   make setup           Init dev environment (venv + deps + hooks + migrate)
+	@echo   make run             Start dev server
+	@echo   make migrate         Run database migrations
+	@echo   make makemigrations  Generate migration files
+	@echo   make test            Run tests
+	@echo   make lint            Lint code (ruff check)
+	@echo   make format          Format code (ruff format + fix)
+	@echo   make hooks           Install pre-commit hooks
+	@echo   make pre-commit      Run pre-commit on all files
+	@echo   make docs            Sync docs to ShowDoc (incremental)
+	@echo   make docs-force      Force sync all docs to ShowDoc
+	@echo   make clean           Clean caches (__pycache__ + .ruff_cache)
+	@echo   make help            Show this help
 
 .DEFAULT_GOAL := help
