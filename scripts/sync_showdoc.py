@@ -119,20 +119,34 @@ def _preprocess(content: str) -> str:
 
     - ``<details>/<summary>`` → ``### title``
     - Strip ``</details>`` closing tags
+    - Collapse excessive blank lines to at most 2
     """
-    # <summary>..text..</summary>  →  ### text
-    content = re.sub(
-        r"<details>\s*\n?",
-        "",
-        content,
-    )
-    content = re.sub(
-        r"\s*<summary>\s*(.+?)\s*</summary>\s*",
-        r"\n### \1\n",
-        content,
-    )
-    content = re.sub(r"\s*</details>\s*", "\n", content)
-    return content
+    lines = content.splitlines()
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+
+        # <details>  → skip entirely
+        if re.match(r"^<details>\s*$", stripped, re.IGNORECASE):
+            continue
+
+        # <summary>text</summary>  → ### text
+        m = re.match(r"^<summary>\s*(.+?)\s*</summary>\s*$", stripped, re.IGNORECASE)
+        if m:
+            out.append(f"### {m.group(1)}")
+            out.append("")
+            continue
+
+        # </details>  → blank line
+        if re.match(r"^</details>\s*$", stripped, re.IGNORECASE):
+            out.append("")
+            continue
+
+        out.append(line)
+
+    # Collapse 3+ consecutive blank lines into 2
+    result = re.sub(r"\n{3,}", "\n\n", "\n".join(out))
+    return result.strip() + "\n"
 
 
 # ---------------------------------------------------------------------------
