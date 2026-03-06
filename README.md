@@ -138,6 +138,8 @@ pre-commit install --hook-type commit-msg
 > 打开项目时 VS Code 会自动提示安装推荐扩展
 
 ## 📁 项目结构
+
+```text
 ├── mctp_api/                  # 项目配置
 │   ├── settings.py            # Django 设置
 │   ├── urls.py                # 主路由（API v1 + 认证 + 文档）
