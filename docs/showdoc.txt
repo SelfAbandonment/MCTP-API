@@ -1,0 +1,38 @@
+# ShowDoc 文档同步清单
+# 格式: ShowDoc分类名 | 页面标题 | 文件路径（相对于项目根目录）
+# 以 # 开头的行为注释，空行会被忽略
+
+# ==================== 项目概览 ====================
+项目概览 | 项目说明 (README) | README.md
+项目概览 | 贡献指南 (CONTRIBUTING) | CONTRIBUTING.md
+项目概览 | 环境变量说明 | docs/showdoc/项目概览/环境变量说明.md
+
+# ==================== 开发规范 ====================
+开发规范 | Git 工作流 | docs/showdoc/开发规范/Git 工作流.md
+开发规范 | Commit 提交规范 | docs/showdoc/开发规范/Commit 提交规范.md
+开发规范 | 分支命名规范 | docs/showdoc/开发规范/分支命名规范.md
+
+# ==================== CI/CD ====================
+CI/CD | GitHub Actions CI | docs/showdoc/CI_CD/GitHub Actions CI.md
+CI/CD | PR 自动标签 | docs/showdoc/CI_CD/PR 自动标签.md
+
+# ==================== 模板 ====================
+模板 | Pull Request 模板 | docs/showdoc/模板/Pull Request 模板.md
+模板 | Bug 报告模板 | docs/showdoc/模板/Bug 报告模板.md
+模板 | 功能请求模板 | docs/showdoc/模板/功能请求模板.md
+
+# ==================== 配置 ====================
+配置 | 代码检查配置 (Ruff) | docs/showdoc/配置/代码检查配置 (Ruff).md
+配置 | Pre-commit Hooks 配置 | docs/showdoc/配置/Pre-commit Hooks 配置.md
+
+# ==================== API 开发 ====================
+API 开发 | API 架构概览 | docs/showdoc/API 开发/API 架构概览.md
+API 开发 | 统一响应格式 | docs/showdoc/API 开发/统一响应格式.md
+API 开发 | JWT 认证说明 | docs/showdoc/API 开发/JWT 认证说明.md
+API 开发 | 异常处理机制 | docs/showdoc/API 开发/异常处理机制.md
+API 开发 | API 端点列表 | docs/showdoc/API 开发/API 端点列表.md
+
+# ==================== 开发环境 ====================
+开发环境 | EditorConfig 统一编辑器 | docs/showdoc/开发环境/EditorConfig 统一编辑器.md
+开发环境 | Makefile 常用命令 | docs/showdoc/开发环境/Makefile 常用命令.md
+开发环境 | VS Code 团队配置 | docs/showdoc/开发环境/VS Code 团队配置.md

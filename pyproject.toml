@@ -1,0 +1,30 @@
+[project]
+name = "mctp-api"
+version = "0.1.0"
+description = "MCTP API - Django REST API"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Django 模板文件，未来会使用这些导入
+"*/admin.py" = ["F401"]
+"*/models.py" = ["F401"]
+"*/views.py" = ["F401"]
+"*/tests.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mctp_api"]

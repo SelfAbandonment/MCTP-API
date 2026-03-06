@@ -104,7 +104,9 @@ venv.bak/
 .mypy_cache/
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 
 # Django media & collected static files
@@ -118,3 +120,4 @@ static_root/
 # OS files
 .DS_Store
 Thumbs.db
+.showdoc_cache.json
