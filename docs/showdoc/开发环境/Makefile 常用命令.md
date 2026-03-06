@@ -49,12 +49,51 @@
 |------|------|
 | `make clean` | 清理 `__pycache__` 和 `.ruff_cache` |
 
-## Windows 安装 make
+## 文档同步
 
-```bash
-# 方式一：Chocolatey
-choco install make
+| 命令 | 说明 |
+|------|------|
+| `make docs` | 增量同步文档到 ShowDoc（仅推送有改动的） |
+| `make docs-force` | 强制全量同步全部文档到 ShowDoc |
 
-# 方式二：winget
+## Windows 安装 make（必看）
+
+### 第一步：安装
+
+```powershell
+# 方式一：winget（推荐，Windows 11 / 10 自带）
 winget install GnuWin32.Make
+
+# 方式二：Chocolatey（需提前安装 choco）
+choco install make
 ```
+
+### 第二步：配置 PATH
+
+> **重要**：GnuWin32 安装后**不会**自动加入系统 PATH，终端会报 `make: 无法识别` 错误。
+
+在 PowerShell 中执行以下命令，将 `make.exe` 所在目录永久写入用户 PATH：
+
+```powershell
+$gnuBin = "C:\Program Files (x86)\GnuWin32\bin"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$gnuBin", "User")
+```
+
+### 第三步：重启终端
+
+**关闭当前终端（或 VS Code）并重新打开**，环境变量才会生效。
+
+### 验证
+
+```powershell
+make --version
+# 输出类似 GNU Make 3.81 即表示成功
+```
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| `make: 无法识别` | 执行上面的 PATH 配置命令，然后**重启终端** |
+| PATH 已配置但仍报错 | 确认路径存在：`Test-Path "C:\Program Files (x86)\GnuWin32\bin\make.exe"` |
+| Chocolatey 安装的 make | 路径可能是 `C:\ProgramData\chocolatey\bin`，choco 通常自动加 PATH |

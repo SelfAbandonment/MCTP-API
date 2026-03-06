@@ -14,7 +14,32 @@ make setup                   # 自动创建虚拟环境 + 安装依赖 + Git Hoo
 make run                     # 启动开发服务器
 ```
 
-> Windows 用户需先安装 make：`choco install make` 或 `winget install GnuWin32.Make`
+> **Windows 用户需先安装 make**，见下方说明 👇
+
+<details>
+<summary>🔧 Windows 安装 make（必看）</summary>
+
+**安装** — 二选一：
+
+```powershell
+# 方式一：winget（推荐）
+winget install GnuWin32.Make
+
+# 方式二：Chocolatey
+choco install make
+```
+
+**配置 PATH**（安装后 `make` 仍报"无法识别"时执行）：
+
+```powershell
+# 将 GnuWin32 永久加入用户 PATH
+$gnuBin = "C:\Program Files (x86)\GnuWin32\bin"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$gnuBin", "User")
+```
+
+> 执行后 **关闭并重新打开终端 / VS Code** 才会生效。验证：`make --version`
+
+</details>
 
 <details>
 <summary>📋 手动初始化（不使用 make）</summary>
@@ -60,6 +85,8 @@ python manage.py runserver
 | `make format` | 代码格式化 (ruff) |
 | `make hooks` | 安装 pre-commit hooks |
 | `make pre-commit` | 手动运行 pre-commit |
+| `make docs` | 同步文档到 ShowDoc（增量） |
+| `make docs-force` | 强制全量同步文档到 ShowDoc |
 | `make clean` | 清理缓存文件 |
 
 ## 🔀 Git 工作流

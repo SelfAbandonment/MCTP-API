@@ -52,7 +52,19 @@ cp .env.example .env         # 编辑 .env 填入 SECRET_KEY
 make setup                   # 自动完成全部初始化
 ```
 
-> Windows 用户需先安装 make：`choco install make` 或 `winget install GnuWin32.Make`
+> **Windows 用户需先安装 make** — 安装后如果终端仍提示"无法识别"，需要手动配置 PATH：
+>
+> ```powershell
+> # 1. 安装
+> winget install GnuWin32.Make
+>
+> # 2. 配置 PATH（仅首次需要）
+> $gnuBin = "C:\Program Files (x86)\GnuWin32\bin"
+> [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$gnuBin", "User")
+>
+> # 3. 关闭并重新打开终端，验证
+> make --version
+> ```
 
 <details>
 <summary>手动初始化（不使用 make）</summary>
