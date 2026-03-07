@@ -2,8 +2,6 @@
   "recommendations": [
     "charliermarsh.ruff",
     "ms-python.python",
-    "editorconfig.editorconfig",
-    "eamodio.gitlens",
-    "GitHub.copilot"
+    "editorconfig.editorconfig"
   ]
 }
