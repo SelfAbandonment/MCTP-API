@@ -46,7 +46,7 @@
 ### 一键初始化（推荐）
 
 ```bash
-git clone https://github.com/SelfAbandonment/MCTP-API.git
+git clone https://github.com/MCREATOPIA/MCTP-API.git
 cd MCTP-API
 cp .env.example .env         # 编辑 .env 填入 SECRET_KEY
 make setup                   # 自动完成全部初始化
@@ -71,7 +71,7 @@ make setup                   # 自动完成全部初始化
 
 ```bash
 # 1. 克隆并进入项目
-git clone https://github.com/SelfAbandonment/MCTP-API.git
+git clone https://github.com/MCREATOPIA/MCTP-API.git
 cd MCTP-API
 git checkout develop
 
