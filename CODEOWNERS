@@ -1,0 +1,13 @@
+* @SelfAbandonment
+
+/.github/ @SelfAbandonment
+/docs/ @SelfAbandonment
+/scripts/ @SelfAbandonment
+/mctp_api/ @SelfAbandonment
+/manage.py @SelfAbandonment
+/Makefile @SelfAbandonment
+/pyproject.toml @SelfAbandonment
+/requirements.txt @SelfAbandonment
+/requirements-dev.txt @SelfAbandonment
+/README.md @SelfAbandonment
+/CONTRIBUTING.md @SelfAbandonment
