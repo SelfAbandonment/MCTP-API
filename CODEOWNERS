@@ -1,13 +1,13 @@
-* @SelfAbandonment @MCREATOPIA/owners
+* @SelfAbandonment
 
-/.github/ @SelfAbandonment @MCREATOPIA/owners
-/docs/ @SelfAbandonment @MCREATOPIA/docs
-/scripts/ @SelfAbandonment @MCREATOPIA/backend
-/mctp_api/ @SelfAbandonment @MCREATOPIA/backend
-/manage.py @SelfAbandonment @MCREATOPIA/backend
-/Makefile @SelfAbandonment @MCREATOPIA/owners
-/pyproject.toml @SelfAbandonment @MCREATOPIA/backend
-/requirements.txt @SelfAbandonment @MCREATOPIA/backend
-/requirements-dev.txt @SelfAbandonment @MCREATOPIA/backend
-/README.md @SelfAbandonment @MCREATOPIA/docs
-/CONTRIBUTING.md @SelfAbandonment @MCREATOPIA/docs
+/.github/ @SelfAbandonment
+/docs/ @SelfAbandonment
+/scripts/ @SelfAbandonment
+/mctp_api/ @SelfAbandonment
+/manage.py @SelfAbandonment
+/Makefile @SelfAbandonment
+/pyproject.toml @SelfAbandonment
+/requirements.txt @SelfAbandonment
+/requirements-dev.txt @SelfAbandonment
+/README.md @SelfAbandonment
+/CONTRIBUTING.md @SelfAbandonment

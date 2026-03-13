@@ -7,7 +7,7 @@ MCTP 项目后端 API，基于 Django 6.0 构建。
 ### 一键初始化（推荐）
 
 ```bash
-git clone https://github.com/MCREATOPIA/MCTP-API.git
+git clone https://github.com/SelfAbandonment/MCTP-API.git
 cd MCTP-API
 cp .env.example .env         # 编辑 .env 填入 SECRET_KEY
 make setup                   # 自动创建虚拟环境 + 安装依赖 + Git Hooks + 数据库迁移
@@ -45,7 +45,7 @@ $gnuBin = "C:\Program Files (x86)\GnuWin32\bin"
 <summary>📋 手动初始化（不使用 make）</summary>
 
 ```bash
-git clone https://github.com/MCREATOPIA/MCTP-API.git
+git clone https://github.com/SelfAbandonment/MCTP-API.git
 cd MCTP-API
 git checkout develop
 
