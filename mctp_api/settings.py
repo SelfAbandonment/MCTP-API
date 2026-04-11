@@ -35,7 +35,8 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured("SECRET_KEY environment variable is required when DEBUG is false")
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+_allowed_hosts_default = "localhost,127.0.0.1,.onrender.com"
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", _allowed_hosts_default).split(",")
 
 
 # Application definition
