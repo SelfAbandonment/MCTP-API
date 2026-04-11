@@ -16,7 +16,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API v1
     path("api/v1/", include("mctp_api.mctp_api_core.urls")),
-    # JWT 认证
+    # 用户认证
+    path("api/v1/auth/", include("mctp_api.auth.urls")),
+    # JWT Token
     path("api/v1/auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/v1/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # API 文档
