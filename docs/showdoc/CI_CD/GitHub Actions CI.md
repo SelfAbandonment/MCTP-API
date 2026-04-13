@@ -27,7 +27,7 @@
 |------|------|
 | 检出代码 | `actions/checkout@v4` |
 | 安装 Python 3.12 | `actions/setup-python@v5` (带 pip 缓存) |
-| 安装依赖 | `pip install -r requirements.txt` |
+| 安装依赖 | `pip install -r requirements-dev.txt` |
 | Django check | 检查项目配置是否正确 |
 | Django test | 运行所有单元测试 |
 

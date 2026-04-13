@@ -6,7 +6,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
-from mctp_api.auth.serializers import RegisterSerializer, UserSerializer, UserUpdateSerializer
+from mctp_api.auth.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer, UserUpdateSerializer
 from mctp_api.mctp_api_core.response import ApiResponse
 
 
@@ -122,3 +122,45 @@ class MeView(APIView):
             data=UserSerializer(request.user).data,
             message="user updated successfully",
         )
+
+
+class ChangePasswordView(APIView):
+    """修改密码"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="修改密码",
+        description="修改当前已认证用户的密码，需提供旧密码验证",
+        request=ChangePasswordSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "integer"},
+                    "message": {"type": "string"},
+                    "data": {"type": "object"},
+                },
+            },
+            400: {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "integer"},
+                    "message": {"type": "string"},
+                    "data": {"type": "object"},
+                },
+            },
+        },
+        tags=["认证"],
+    )
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return ApiResponse.error(
+                message="validation error",
+                code=400,
+                data=serializer.errors,
+                status=400,
+            )
+        serializer.save()
+        return ApiResponse.success(message="password changed successfully")

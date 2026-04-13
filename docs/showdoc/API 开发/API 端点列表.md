@@ -7,13 +7,18 @@
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
 | `GET` | `/api/v1/health/` | 健康检查 | ❌ 不需要 |
+| `GET` | `/api/v1/health/detail/` | 详细健康检查（含组件状态） | ✅ 需要 |
 
 ### 认证接口
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
+| `POST` | `/api/v1/auth/register/` | 用户注册 | ❌ 不需要 |
 | `POST` | `/api/v1/auth/token/` | 获取 JWT Token（登录） | ❌ 不需要 |
 | `POST` | `/api/v1/auth/token/refresh/` | 刷新 Access Token | ❌ 不需要 |
+| `GET` | `/api/v1/auth/me/` | 获取当前用户信息 | ✅ 需要 |
+| `PUT` | `/api/v1/auth/me/` | 更新当前用户信息 | ✅ 需要 |
+| `POST` | `/api/v1/auth/password/` | 修改密码 | ✅ 需要 |
 
 ### 文档接口
 
@@ -29,7 +34,11 @@
 |------|------|------|
 | `GET` | `/admin/` | Django 管理后台 |
 
-## 健康检查响应示例
+---
+
+## 接口响应示例
+
+### 健康检查
 
 ```
 GET /api/v1/health/
@@ -41,15 +50,56 @@ GET /api/v1/health/
     "message": "service is running",
     "data": {
         "status": "healthy",
-        "version": "1.0.0",
-        "debug": true
+        "version": "1.0.0"
     }
 }
 ```
 
+### 用户注册
+
+```
+POST /api/v1/auth/register/
+```
+
+```json
+{
+    "username": "testuser",
+    "email": "test@example.com",
+    "password": "StrongPass123!",
+    "password_confirm": "StrongPass123!"
+}
+```
+
+### 修改密码
+
+```
+POST /api/v1/auth/password/
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+    "old_password": "OldPass123!",
+    "new_password": "NewPass456!",
+    "new_password_confirm": "NewPass456!"
+}
+```
+
+响应：
+
+```json
+{
+    "code": 200,
+    "message": "password changed successfully",
+    "data": null
+}
+```
+
+---
+
 ## 扩展新接口
 
-在 `mctp_api_core/views.py` 中添加视图，在 `mctp_api_core/urls.py` 中注册路由：
+在对应 app 的 `views.py` 中添加视图，在 `urls.py` 中注册路由：
 
 ```python
 # views.py
@@ -62,7 +112,6 @@ class MyView(APIView):
 
 # urls.py
 urlpatterns = [
-    path("health/", HealthCheckView.as_view(), name="health-check"),
     path("my-endpoint/", MyView.as_view(), name="my-endpoint"),
 ]
 ```
