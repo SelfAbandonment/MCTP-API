@@ -15,7 +15,7 @@ jobs:
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
           apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
+          git clone http://110.42.14.118:21002/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
       - name: Install ruff
         run: pip install -i https://mirrors.aliyun.com/pypi/simple/ ruff
       - name: Ruff check
@@ -32,7 +32,7 @@ jobs:
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
           apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
+          git clone http://110.42.14.118:21002/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
       - name: Install dependencies
         run: pip install -i https://mirrors.aliyun.com/pypi/simple/ -r /src/requirements.txt
       - name: Django check
