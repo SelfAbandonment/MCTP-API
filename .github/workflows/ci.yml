@@ -15,14 +15,13 @@ jobs:
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
           apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          rm -rf /workspace
-          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
+          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
       - name: Install ruff
         run: pip install -i https://mirrors.aliyun.com/pypi/simple/ ruff
       - name: Ruff check
-        run: ruff check /workspace
+        run: ruff check /src
       - name: Ruff format check
-        run: ruff format --check /workspace
+        run: ruff format --check /src
 
   test:
     runs-on: ubuntu-latest
@@ -33,17 +32,16 @@ jobs:
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
           sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
           apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          rm -rf /workspace
-          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
+          git clone http://172.18.0.3:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
       - name: Install dependencies
-        run: pip install -i https://mirrors.aliyun.com/pypi/simple/ -r /workspace/requirements.txt
+        run: pip install -i https://mirrors.aliyun.com/pypi/simple/ -r /src/requirements.txt
       - name: Django check
-        run: python /workspace/manage.py check
+        run: python /src/manage.py check
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"
       - name: Run tests
-        run: python /workspace/manage.py test --verbosity=2
+        run: python /src/manage.py test --verbosity=2
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"
