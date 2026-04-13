@@ -10,38 +10,38 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        run: |
-          sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-          sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
-          apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          git clone http://110.42.14.118:21002/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
       - name: Install ruff
-        run: pip install -i https://mirrors.aliyun.com/pypi/simple/ ruff
+        run: pip install ruff
       - name: Ruff check
-        run: ruff check /src
+        run: ruff check .
       - name: Ruff format check
-        run: ruff format --check /src
+        run: ruff format --check .
 
   test:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - name: Checkout
-        run: |
-          sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-          sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
-          apt-get update -qq && apt-get install -y -qq git --no-install-recommends
-          git clone http://110.42.14.118:21002/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /src
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
-        run: pip install -i https://mirrors.aliyun.com/pypi/simple/ -r /src/requirements.txt
+        run: pip install -r requirements.txt
       - name: Django check
-        run: python /src/manage.py check
+        run: python manage.py check
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"
       - name: Run tests
-        run: python /src/manage.py test --verbosity=2
+        run: python manage.py test --verbosity=2
         env:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           DEBUG: "False"
