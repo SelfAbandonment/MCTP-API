@@ -163,8 +163,6 @@ pre-commit install --hook-type commit-msg
 ├── .github/workflows/         # GitHub Actions CI/CD
 │   ├── ci.yml                 # Lint + Test
 │   └── auto-label.yml         # PR 自动标签
-└── .gitea/workflows/          # Gitea Actions CI/CD
-    └── ci.yml                 # Lint + Test（内网 CI）
 ```
 
 ## 📜 License
