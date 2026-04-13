@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt .
-RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
