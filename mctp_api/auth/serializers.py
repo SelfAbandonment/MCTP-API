@@ -55,6 +55,35 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "date_joined", "last_login")
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    """修改密码序列化器"""
+
+    old_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+    )
+    new_password_confirm = serializers.CharField(write_only=True, required=True)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("old password is incorrect")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError({"new_password": "passwords do not match"})
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save()
+        return user
+
+
 class UserUpdateSerializer(serializers.ModelSerializer):
     """用户信息序列化器（更新）"""
 
