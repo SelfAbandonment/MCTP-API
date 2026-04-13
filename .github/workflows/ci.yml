@@ -12,8 +12,8 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone ${{ gitea.server_url }}/${{ gitea.repository }}.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
-          echo "GITHUB_WORKSPACE=/workspace" >> $GITHUB_ENV
+          apt-get update -qq && apt-get install -y -qq git
+          git clone http://172.18.0.4:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
       - name: Install ruff
         run: pip install ruff
       - name: Ruff check
@@ -27,8 +27,8 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone ${{ gitea.server_url }}/${{ gitea.repository }}.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
-          echo "GITHUB_WORKSPACE=/workspace" >> $GITHUB_ENV
+          apt-get update -qq && apt-get install -y -qq git
+          git clone http://172.18.0.4:3000/MCTP_admin/MCTP-API.git --branch ${{ gitea.ref_name }} --depth 1 /workspace
       - name: Install dependencies
         run: pip install -r /workspace/requirements.txt
       - name: Django check
