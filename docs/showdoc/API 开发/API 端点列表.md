@@ -25,7 +25,6 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/docs/` | Swagger UI 交互式文档 |
-| `GET` | `/api/redoc/` | ReDoc 文档 |
 | `GET` | `/api/schema/` | OpenAPI 3.0 Schema (YAML) |
 
 ### 管理后台
