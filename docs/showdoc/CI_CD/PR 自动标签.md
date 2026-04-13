@@ -13,6 +13,7 @@
 | `refactor/` | `refactor` | 代码重构 |
 | `test/` | `test` | 测试相关 |
 | `chore/` | `chore` | 构建/工具 |
+| `release/` | `release` | 版本发布 |
 
 ## 示例
 
