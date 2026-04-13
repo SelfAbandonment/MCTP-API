@@ -149,6 +149,7 @@ pre-commit install --hook-type commit-msg
 │       ├── models.py          # 数据模型
 │       ├── response.py        # 统一响应格式
 │       └── exceptions.py      # 全局异常处理
+├── Dockerfile                 # 生产容器构建
 ├── requirements.txt           # 生产依赖
 ├── requirements-dev.txt       # 开发依赖
 ├── .env.example               # 环境变量模板
@@ -159,9 +160,11 @@ pre-commit install --hook-type commit-msg
 ├── .vscode/                   # VS Code 团队配置
 │   ├── settings.json          # 格式化 / Lint 配置
 │   └── extensions.json        # 推荐扩展
-└── .github/workflows/         # GitHub Actions CI/CD
-    ├── ci.yml                 # Lint + Test
-    └── auto-label.yml         # PR 自动标签
+├── .github/workflows/         # GitHub Actions CI/CD
+│   ├── ci.yml                 # Lint + Test
+│   └── auto-label.yml         # PR 自动标签
+└── .gitea/workflows/          # Gitea Actions CI/CD
+    └── ci.yml                 # Lint + Test（内网 CI）
 ```
 
 ## 📜 License
