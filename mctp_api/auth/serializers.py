@@ -49,10 +49,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     """用户信息序列化器（读取）"""
 
+    minecraft = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "date_joined", "last_login")
-        read_only_fields = ("id", "date_joined", "last_login")
+        fields = ("id", "username", "email", "date_joined", "last_login", "minecraft")
+        read_only_fields = ("id", "date_joined", "last_login", "minecraft")
+
+    def get_minecraft(self, obj):
+        ma = getattr(obj, "microsoft_account", None)
+        if not ma:
+            return None
+        return {
+            "uuid": ma.mc_uuid,
+            "username": ma.mc_username,
+            "bound_at": ma.created_at,
+        }
 
 
 class ChangePasswordSerializer(serializers.Serializer):
