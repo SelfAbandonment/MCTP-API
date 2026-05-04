@@ -159,7 +159,9 @@ class MicrosoftCallbackView(APIView):
                 # 这里直接返回原绑定用户，前端可据 mc_username 提示
                 logger.warning(
                     "MC UUID %s already bound to user %s, refused to rebind to %s",
-                    profile.uuid, existing.user_id, target_user.id,
+                    profile.uuid,
+                    existing.user_id,
+                    target_user.id,
                 )
                 return self._touch(existing, profile)
 
@@ -214,6 +216,7 @@ class MicrosoftCallbackView(APIView):
             if suffix > 100:
                 # 极端情况兜底
                 import secrets
+
                 candidate = f"{base}_{secrets.token_hex(3)}"
                 break
         return candidate
