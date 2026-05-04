@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # Project apps
     "mctp_api.mctp_api_core",
+    "mctp_api.auth",
 ]
 
 MIDDLEWARE = [
@@ -181,3 +182,20 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }
+
+
+# ==================== Microsoft OAuth (Minecraft) ====================
+
+MS_CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
+MS_CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET", "")
+MS_REDIRECT_URI = os.getenv(
+    "MS_REDIRECT_URI",
+    "http://localhost:8000/api/v1/auth/microsoft/callback/",
+)
+FRONTEND_OAUTH_CALLBACK = os.getenv(
+    "FRONTEND_OAUTH_CALLBACK",
+    "http://localhost:5173/#/auth/microsoft/callback",
+)
+# Fernet key for encrypting MS refresh tokens at rest. Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+MS_TOKEN_FERNET_KEY = os.getenv("MS_TOKEN_FERNET_KEY", "")
