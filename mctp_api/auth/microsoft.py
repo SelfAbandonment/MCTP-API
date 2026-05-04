@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import secrets
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlencode
 
 import requests
@@ -227,7 +226,7 @@ def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
 # --------------------- refresh_token 加密存储 ---------------------
 
 
-def _fernet() -> Optional[Fernet]:
+def _fernet() -> Fernet | None:
     key = settings.MS_TOKEN_FERNET_KEY
     if not key:
         return None

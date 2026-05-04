@@ -196,7 +196,7 @@ class MicrosoftCallbackView(APIView):
         return user
 
     @staticmethod
-    def _touch(account: MicrosoftAccount, profile) -> "User":
+    def _touch(account: MicrosoftAccount, profile) -> User:
         account.mc_username = profile.username
         if profile.ms_refresh_token:
             account.ms_refresh_token_enc = encrypt_refresh_token(profile.ms_refresh_token)
