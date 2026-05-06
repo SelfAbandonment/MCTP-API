@@ -46,3 +46,8 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["mctp_api"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+]
