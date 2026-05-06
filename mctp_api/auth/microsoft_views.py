@@ -132,7 +132,11 @@ class MicrosoftCallbackView(APIView):
             return _redirect_frontend(error="server_error")
 
         # 3. 找/建/绑定 User + MicrosoftAccount
-        user = self._resolve_user(profile, bind_user_id)
+        try:
+            user = self._resolve_user(profile, bind_user_id)
+        except MicrosoftOAuthError as e:
+            logger.info("Microsoft account binding failed: %s (%s)", e, e.code)
+            return _redirect_frontend(error=e.code, error_description=str(e))
 
         # 4. 签 JWT 跳前端
         access, refresh = _issue_jwt(user)
@@ -154,18 +158,21 @@ class MicrosoftCallbackView(APIView):
             except User.DoesNotExist:
                 target_user = None
 
-            if existing and target_user and existing.user_id != target_user.id:
-                # 该 MC UUID 已被别的账号占用，安全起见拒绝抢占；
-                # 这里直接返回原绑定用户，前端可据 mc_username 提示
+            if existing and target_user and existing.user.pk != target_user.pk:
+                # 该 MC UUID 已被别的账号占用，拒绝绑定，避免错误地下发对方账号的 JWT。
                 logger.warning(
                     "MC UUID %s already bound to user %s, refused to rebind to %s",
                     profile.uuid,
-                    existing.user_id,
-                    target_user.id,
+                    existing.user.pk,
+                    target_user.pk,
                 )
-                return self._touch(existing, profile)
+                raise MicrosoftOAuthError(
+                    "该 Minecraft 账号已绑定到其他用户",
+                    code="mc_already_bound",
+                    http_status=409,
+                )
 
-            if existing and target_user and existing.user_id == target_user.id:
+            if existing and target_user and existing.user.pk == target_user.pk:
                 return self._touch(existing, profile)
 
             if not existing and target_user:
@@ -198,7 +205,7 @@ class MicrosoftCallbackView(APIView):
         return user
 
     @staticmethod
-    def _touch(account: MicrosoftAccount, profile) -> User:
+    def _touch(account: MicrosoftAccount, profile):
         account.mc_username = profile.username
         if profile.ms_refresh_token:
             account.ms_refresh_token_enc = encrypt_refresh_token(profile.ms_refresh_token)

@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 import requests
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
+from requests import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,12 @@ def _mc_login(uhs: str, xsts_token: str) -> str:
         headers={"Accept": "application/json", "Content-Type": "application/json"},
         timeout=REQUEST_TIMEOUT,
     )
+    if resp.status_code == 403 and "Invalid app registration" in resp.text:
+        logger.warning("MC app registration invalid: %s", resp.text[:300])
+        raise MicrosoftOAuthError(
+            "Azure 应用注册配置无效（Microsoft/Minecraft 不接受当前应用配置）",
+            code="ms_app_registration_invalid",
+        )
     if resp.status_code != 200:
         logger.warning("MC login failed: %s %s", resp.status_code, resp.text[:300])
         raise MicrosoftOAuthError("Minecraft 登录失败", code="mc_login_failed")
@@ -206,14 +213,22 @@ def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
             http_status=500,
         )
 
-    ms = _ms_exchange_code(code)
-    ms_access = ms["access_token"]
-    ms_refresh = ms.get("refresh_token", "")
+    try:
+        ms = _ms_exchange_code(code)
+        ms_access = ms["access_token"]
+        ms_refresh = ms.get("refresh_token", "")
 
-    xbl_token, _ = _xbl_authenticate(ms_access)
-    xsts_token, uhs = _xsts_authenticate(xbl_token)
-    mc_token = _mc_login(uhs, xsts_token)
-    uuid, username = _mc_profile(mc_token)
+        xbl_token, _ = _xbl_authenticate(ms_access)
+        xsts_token, uhs = _xsts_authenticate(xbl_token)
+        mc_token = _mc_login(uhs, xsts_token)
+        uuid, username = _mc_profile(mc_token)
+    except RequestException as e:
+        logger.warning("Microsoft OAuth upstream network error: %s", e)
+        raise MicrosoftOAuthError(
+            "无法连接 Microsoft/Xbox 服务，请稍后重试。",
+            code="ms_network_error",
+            http_status=503,
+        ) from e
 
     return MinecraftProfile(
         uuid=uuid,

@@ -2,10 +2,15 @@
 认证模块测试
 """
 
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from mctp_api.auth.models import MicrosoftAccount
 
 User = get_user_model()
 
@@ -117,3 +122,36 @@ class MeTests(APITestCase):
         response = self.client.put("/api/v1/auth/me/", {"email": "taken@example.com"})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class MicrosoftCallbackTests(APITestCase):
+    @patch("mctp_api.auth.microsoft_views.exchange_code_for_minecraft_profile")
+    def test_callback_bind_conflict_does_not_issue_other_users_token(self, mock_exchange):
+        target_user = User.objects.create_user(username="target", email="target@example.com", password="pass123")
+        existing_user = User.objects.create_user(username="owner", email="owner@example.com", password="pass123")
+        MicrosoftAccount.objects.create(
+            user=existing_user,
+            mc_uuid="1234567890abcdef1234567890abcdef",
+            mc_username="Steve",
+        )
+
+        mock_exchange.return_value = SimpleNamespace(
+            uuid="1234567890abcdef1234567890abcdef",
+            username="Steve",
+            ms_refresh_token="refresh-token",
+        )
+
+        session = self.client.session
+        session["ms_oauth_state"] = "expected-state"
+        session["ms_oauth_bind_user_id"] = target_user.id
+        session.save()
+
+        response = self.client.get(
+            "/api/v1/auth/microsoft/callback/",
+            {"code": "oauth-code", "state": "expected-state"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("error=mc_already_bound", response["Location"])
+        self.assertNotIn("access=", response["Location"])
+        self.assertNotIn("refresh=", response["Location"])
