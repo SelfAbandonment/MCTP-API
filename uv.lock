@@ -383,6 +383,7 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "pre-commit" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -403,7 +404,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pre-commit", specifier = ">=4.6.0" }]
+dev = [
+    { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "ruff", specifier = ">=0.9,<1.0" },
+]
 
 [[package]]
 name = "nodeenv"
