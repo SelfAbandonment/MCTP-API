@@ -19,6 +19,15 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _env_first(*names: str, default: str = "") -> str:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return default
+
+
 # 加载 .env 文件
 load_dotenv(BASE_DIR / ".env")
 
@@ -54,6 +63,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # Project apps
     "mctp_api.mctp_api_core",
+    "mctp_api.auth",
 ]
 
 MIDDLEWARE = [
@@ -170,6 +180,7 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # 开发环境允许所有来源
+CORS_ALLOW_CREDENTIALS = True
 
 
 # ==================== API 文档配置 (drf-spectacular) ====================
@@ -181,3 +192,21 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }
+
+
+# ==================== Microsoft OAuth (Minecraft) ====================
+
+MS_CLIENT_ID = _env_first("MS_CLIENT_ID", "MS_OAUTH_CLIENT_ID")
+MS_CLIENT_SECRET = _env_first("MS_CLIENT_SECRET", "MS_OAUTH_CLIENT_SECRET")
+MS_REDIRECT_URI = _env_first(
+    "MS_REDIRECT_URI",
+    "MS_OAUTH_REDIRECT_URI",
+    "http://localhost:8000/api/v1/auth/microsoft/callback/",
+)
+FRONTEND_OAUTH_CALLBACK = os.getenv(
+    "FRONTEND_OAUTH_CALLBACK",
+    "http://localhost:5173/#/auth/microsoft/callback",
+)
+# Fernet key for encrypting MS refresh tokens at rest. Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+MS_TOKEN_FERNET_KEY = _env_first("MS_TOKEN_FERNET_KEY", "MS_REFRESH_TOKEN_FERNET_KEY")

@@ -2,14 +2,14 @@
 
 项目提供 Makefile 简化常用操作，输入 `make help` 查看所有命令。
 
+> **依赖管理**：项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖，所有命令均通过 `uv run` 执行，无需手动激活虚拟环境。
+
 ## 环境管理
 
 | 命令 | 说明 |
 |------|------|
-| `make setup` | **一键初始化**：创建虚拟环境 → 安装依赖 → Git Hooks → 数据库迁移 |
-| `make venv` | 仅创建虚拟环境 |
-| `make install` | 安装生产依赖 |
-| `make install-dev` | 安装全部依赖（含开发工具） |
+| `make setup` | **一键初始化**：同步依赖（uv sync --dev）→ Git Hooks → 数据库迁移 |
+| `make sync` | 同步依赖（包括开发工具） |
 
 ## Django 操作
 

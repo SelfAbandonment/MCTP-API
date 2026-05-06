@@ -35,5 +35,8 @@
   "files.associations": {
     "*.env": "dotenv",
     "*.env.*": "dotenv"
-  }
+  },
+  "githubPullRequests.ignoredPullRequestBranches": [
+    "develop"
+  ]
 }
