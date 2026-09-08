@@ -28,3 +28,12 @@ class HealthCheckTests(APITestCase):
         self.assertEqual(response.data["data"]["status"], "healthy")
         self.assertIn("databases", response.data["data"]["components"])
         self.assertIn("application", response.data["data"]["components"])
+
+
+class OpenApiSchemaTests(APITestCase):
+    def test_schema_endpoint_returns_openapi_document(self):
+        response = self.client.get("/api/schema/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["openapi"], "3.0.3")
+        self.assertIn("/api/v1/auth/register/", response.data["paths"])

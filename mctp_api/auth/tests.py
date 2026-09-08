@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,6 +14,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from mctp_api.auth.models import MicrosoftAccount
 
 User = get_user_model()
+
+
+class MicrosoftLoginTests(APITestCase):
+    @override_settings(MS_CLIENT_ID="")
+    def test_login_reports_missing_configuration(self):
+        response = self.client.get("/api/v1/auth/microsoft/login/")
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["message"], "Microsoft OAuth 未配置")
 
 
 class RegisterTests(APITestCase):
