@@ -118,7 +118,6 @@ uv run pre-commit install --hook-type commit-msg
 | 地址 | 说明 |
 |------|------|
 | [/api/docs/](http://127.0.0.1:8000/api/docs/) | Swagger UI 交互式文档 |
-| [/api/redoc/](http://127.0.0.1:8000/api/redoc/) | ReDoc 文档 |
 | [/api/schema/](http://127.0.0.1:8000/api/schema/) | OpenAPI 3.0 Schema |
 
 ## �️ 开发环境统一配置
@@ -134,6 +133,13 @@ uv run pre-commit install --hook-type commit-msg
 | `.pre-commit-config.yaml` | 提交时自动检查代码规范和 commit 格式 |
 
 > 打开项目时 VS Code 会自动提示安装推荐扩展
+
+## 🚢 构建与发布
+
+- 推送到 `develop` 或提交目标为 `develop` 的 PR 时，CI 会运行 lint、测试和 Docker 快照构建。
+- 快照构建只验证镜像可构建，不会推送到镜像仓库，适合开发环境验收。
+- 面向 `main` 的发布 PR 和推送到 `main` 时，CI 会运行相同的检查并执行生产镜像构建。
+- 生产部署由 Coolify 监听 `main` 分支完成；合并到 `main` 前应先确认 `develop` 的全部检查通过。
 
 ## 📁 项目结构
 
