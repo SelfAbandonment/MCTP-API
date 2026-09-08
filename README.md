@@ -4,6 +4,8 @@ MCTP 项目后端 API，基于 Django 6.0 构建。
 
 ## 🚀 快速开始
 
+> **前置要求**：需要安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)
+
 ### 一键初始化（推荐）
 
 ```bash
@@ -49,25 +51,20 @@ git clone https://github.com/SelfAbandonment/MCTP-API.git
 cd MCTP-API
 git checkout develop
 
-# 虚拟环境
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-source .venv/bin/activate       # macOS/Linux
-
-# 安装依赖
-pip install -r requirements-dev.txt
+# 同步依赖（包括开发工具）
+uv sync --dev
 
 # 环境变量
 cp .env.example .env
 # 编辑 .env 填入 SECRET_KEY
 
 # Git Hooks
-pre-commit install
-pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 
 # 数据库 & 启动
-python manage.py migrate
-python manage.py runserver
+uv run python manage.py migrate
+uv run python manage.py runserver
 ```
 
 </details>
@@ -110,8 +107,8 @@ python manage.py runserver
 ### 安装 pre-commit hooks
 
 ```bash
-pre-commit install
-pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 ## 🌐 API 文档
@@ -129,7 +126,8 @@ pre-commit install --hook-type commit-msg
 | 配置文件 | 作用 |
 |----------|------|
 | `.editorconfig` | 统一缩进（4空格）、换行符（LF）、编码（UTF-8） |
-| `.python-version` | 锁定 Python 3.12（pyenv 自动识别） |
+| `pyproject.toml` | 项目元数据 + 依赖声明 + Ruff 配置 |
+| `uv.lock` | 依赖版本锁定文件（uv 自动管理） |
 | `Makefile` | 常用命令快捷方式 |
 | `.vscode/settings.json` | VS Code 保存自动格式化 + Ruff 配置 |
 | `.vscode/extensions.json` | 推荐扩展（Ruff、Python、EditorConfig 等） |
@@ -150,12 +148,10 @@ pre-commit install --hook-type commit-msg
 │       ├── response.py        # 统一响应格式
 │       └── exceptions.py      # 全局异常处理
 ├── Dockerfile                 # 生产容器构建
-├── requirements.txt           # 生产依赖
-├── requirements-dev.txt       # 开发依赖
 ├── .env.example               # 环境变量模板
 ├── .editorconfig              # 编辑器统一配置
-├── .python-version            # Python 版本锁定
-├── pyproject.toml             # 项目元数据 + Ruff 配置
+├── pyproject.toml             # 项目元数据 + 依赖声明 + Ruff 配置
+├── uv.lock                    # 依赖版本锁定（uv 自动管理）
 ├── .pre-commit-config.yaml    # Git Hooks 配置
 ├── .vscode/                   # VS Code 团队配置
 │   ├── settings.json          # 格式化 / Lint 配置

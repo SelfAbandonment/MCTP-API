@@ -121,3 +121,4 @@ static_root/
 .DS_Store
 Thumbs.db
 .showdoc_cache.json
+MCTP-API.code-workspace

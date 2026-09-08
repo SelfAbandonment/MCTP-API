@@ -5,6 +5,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 User = get_user_model()
 
@@ -49,10 +50,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     """用户信息序列化器（读取）"""
 
+    minecraft = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "date_joined", "last_login")
-        read_only_fields = ("id", "date_joined", "last_login")
+        fields = ("id", "username", "email", "date_joined", "last_login", "minecraft")
+        read_only_fields = ("id", "date_joined", "last_login", "minecraft")
+
+    def get_minecraft(self, obj):
+        ma = getattr(obj, "microsoft_account", None)
+        if not ma:
+            return None
+        return {
+            "uuid": ma.mc_uuid,
+            "username": ma.mc_username,
+            "bound_at": ma.created_at,
+        }
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -81,6 +94,8 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context["request"].user
         user.set_password(self.validated_data["new_password"])
         user.save()
+        for token in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=token)
         return user
 
 
