@@ -37,7 +37,7 @@
 
 ### 阶段四：Production 构建 — 依赖 Lint 和 Test 通过
 
-推送到 `main` 的提交会构建带有 commit SHA 的生产镜像标签。生产部署由 Coolify 监听 `main` 分支执行。
+面向 `main` 的发布 PR 和推送到 `main` 的提交会构建带有 commit SHA 的生产镜像标签。生产部署由 Coolify 监听 `main` 分支执行。
 
 ## 流程图
 
