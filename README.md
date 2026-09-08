@@ -138,7 +138,7 @@ uv run pre-commit install --hook-type commit-msg
 
 - 推送到 `develop` 或提交目标为 `develop` 的 PR 时，CI 会运行 lint、测试和 Docker 快照构建。
 - 快照构建只验证镜像可构建，不会推送到镜像仓库，适合开发环境验收。
-- 推送到 `main` 时，CI 会运行相同的检查并执行生产镜像构建。
+- 面向 `main` 的发布 PR 和推送到 `main` 时，CI 会运行相同的检查并执行生产镜像构建。
 - 生产部署由 Coolify 监听 `main` 分支完成；合并到 `main` 前应先确认 `develop` 的全部检查通过。
 
 ## 📁 项目结构
