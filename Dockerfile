@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM ghcr.io/astral-sh/uv:0.11.7-python3.12-bookworm-slim
 
 WORKDIR /app
 
@@ -6,11 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-COPY requirements.txt .
-RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
 
 COPY . .
 
 EXPOSE 8000
 
-CMD ["gunicorn", "mctp_api.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]
+CMD ["uv", "run", "--no-dev", "gunicorn", "mctp_api.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]

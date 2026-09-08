@@ -45,7 +45,7 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("SECRET_KEY environment variable is required when DEBUG is false")
 
 _allowed_hosts_default = "localhost,127.0.0.1,.onrender.com"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", _allowed_hosts_default).split(",")
+ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", _allowed_hosts_default).split(",") if host.strip()]
 
 
 # Application definition
@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework_simplejwt.token_blacklist",
     # Third-party apps
     "rest_framework",
     "corsheaders",
@@ -178,8 +179,10 @@ SIMPLE_JWT = {
 
 # ==================== CORS 配置 ====================
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # 开发环境允许所有来源
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if origin.strip()
+]
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 
 
@@ -210,3 +213,6 @@ FRONTEND_OAUTH_CALLBACK = os.getenv(
 # Fernet key for encrypting MS refresh tokens at rest. Generate with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 MS_TOKEN_FERNET_KEY = _env_first("MS_TOKEN_FERNET_KEY", "MS_REFRESH_TOKEN_FERNET_KEY")
+
+if not DEBUG and (MS_CLIENT_ID or MS_CLIENT_SECRET) and not MS_TOKEN_FERNET_KEY:
+    raise ImproperlyConfigured("MS_TOKEN_FERNET_KEY is required when Microsoft OAuth is enabled")

@@ -124,6 +124,35 @@ class MeTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class ChangePasswordTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="password-user",
+            email="password@example.com",
+            password="OldStrongPass123!",
+        )
+        refresh = RefreshToken.for_user(self.user)
+        self.refresh_token = str(refresh)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+
+    def test_change_password_blacklists_existing_refresh_token(self):
+        response = self.client.post(
+            "/api/v1/auth/password/",
+            {
+                "old_password": "OldStrongPass123!",
+                "new_password": "NewStrongPass123!",
+                "new_password_confirm": "NewStrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        token_response = self.client.post(
+            "/api/v1/auth/token/refresh/",
+            {"refresh": self.refresh_token},
+        )
+        self.assertEqual(token_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 class MicrosoftCallbackTests(APITestCase):
     @patch("mctp_api.auth.microsoft_views.exchange_code_for_minecraft_profile")
     def test_callback_bind_conflict_does_not_issue_other_users_token(self, mock_exchange):

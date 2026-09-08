@@ -80,8 +80,8 @@ python -m venv .venv
 .venv\Scripts\activate  # Windows
 source .venv/bin/activate  # macOS/Linux
 
-# 3. 安装依赖
-pip install -r requirements-dev.txt
+# 3. 同步依赖（包括开发工具）
+uv sync --dev
 
 # 4. 配置环境变量
 cp .env.example .env
