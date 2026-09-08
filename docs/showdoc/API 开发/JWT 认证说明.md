@@ -1,72 +1,67 @@
 # JWT 认证说明
 
-项目使用 **SimpleJWT** 实现无状态的 Token 认证。
+项目使用 SimpleJWT 实现 Bearer Token 认证。
 
 ## 认证流程
 
-```
-1. POST /api/v1/auth/token/        ← 登录，获取 access + refresh token
-2. 请求头 Authorization: Bearer <access_token>  ← 携带 token 访问接口
-3. POST /api/v1/auth/token/refresh/ ← access 过期后用 refresh 换新 token
-```
+1. `POST /api/v1/auth/token/` 使用用户名和密码登录。
+2. 在请求头中携带 `Authorization: Bearer <access-token>`。
+3. access token 过期后，调用 `POST /api/v1/auth/token/refresh/`。
 
 ## Token 配置
 
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| Access Token 有效期 | 2 小时 | 用于接口鉴权 |
+| 配置项 | 当前值 | 说明 |
+|--------|--------|------|
+| Access Token 有效期 | 2 小时 | 用于访问受保护接口 |
 | Refresh Token 有效期 | 7 天 | 用于刷新 access token |
-| 自动轮换 Refresh | 开启 | 刷新时颁发新的 refresh token |
-| 黑名单机制 | 开启 | 旧 refresh token 自动失效 |
+| Refresh Token 轮换 | 开启 | 刷新时返回新的 refresh token |
+| 轮换后黑名单 | 开启 | 旧 refresh token 不能重复使用 |
+| 修改密码 | 吊销已有 refresh token | 需要重新登录 |
 
-## 接口说明
+## 获取 Token
 
-### 获取 Token（登录）
-
-```
+```http
 POST /api/v1/auth/token/
 Content-Type: application/json
+```
 
+```json
 {
-    "username": "admin",
+    "username": "testuser",
     "password": "your_password"
 }
 ```
 
-**成功响应：**
+```json
+{
+    "access": "<access-token>",
+    "refresh": "<refresh-token>"
+}
+```
+
+## 刷新 Token
+
+```http
+POST /api/v1/auth/token/refresh/
+Content-Type: application/json
+```
 
 ```json
 {
-    "access": "eyJhbGciOiJIUzI1NiIs...",
-    "refresh": "eyJhbGciOiJIUzI1NiIs..."
+    "refresh": "<refresh-token>"
 }
 ```
 
-### 刷新 Token
+## 公开接口
 
-```
-POST /api/v1/auth/token/refresh/
-Content-Type: application/json
+- `GET /api/v1/health/`
+- `POST /api/v1/auth/register/`
+- `POST /api/v1/auth/token/`
+- `POST /api/v1/auth/token/refresh/`
+- Microsoft OAuth 登录和回调接口（回调通过 session state 校验）
 
-{
-    "refresh": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
+## 安全要求
 
-### 使用 Token 访问接口
-
-```
-GET /api/v1/some-endpoint/
-Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
-```
-
-## 无需认证的接口
-
-以下接口设置了 `AllowAny` 权限，无需 Token：
-- `GET /api/v1/health/` — 健康检查
-
-## 注意事项
-
-- Access Token 过期后**不能续期**，必须用 Refresh Token 换新的
-- Refresh Token 使用后会**自动轮换**，旧 Token 立即失效
-- 生产环境务必使用 **HTTPS**，防止 Token 被截获
+- 生产环境必须使用 HTTPS。
+- 不要把 access token、refresh token 或 client secret 写入日志、Issue 或仓库。
+- 前端应在 access token 过期时使用 refresh token；refresh token 轮换失败时需要重新登录。

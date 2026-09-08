@@ -7,7 +7,7 @@
 - Django 6.0 + Django REST Framework 后端。
 - 仓库路径：`/mnt/d/code/MCTP-API`。
 - GitHub：`github.com/SelfAbandonment/MCTP-API`。
-- 生产部署：Coolify 监听 `main` 分支，当前 API 地址：`http://api.mcreatopla.top:21009`。
+- 生产部署：Coolify 监听 `main` 分支；生产 API 地址由 Coolify 环境配置，不在代码仓库中硬编码。
 
 ## 分支规则
 

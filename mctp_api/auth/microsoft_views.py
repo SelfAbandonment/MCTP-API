@@ -3,7 +3,7 @@ Microsoft OAuth 视图
 
 流程:
   GET  /api/v1/auth/microsoft/login/      -> 返回授权 URL（前端 window.location 跳过去）
-  GET  /api/v1/auth/microsoft/callback/   -> Microsoft 回调，4 步换 token，
+  GET  /api/v1/auth/microsoft/callback/   -> Microsoft 回调，完成上游 token 换取，
                                               成功后 302 跳转到 FRONTEND_OAUTH_CALLBACK?token=...&refresh=...
 
 设计要点:
@@ -23,6 +23,7 @@ from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -44,6 +45,10 @@ SESSION_STATE_KEY = "ms_oauth_state"
 SESSION_BIND_USER_KEY = "ms_oauth_bind_user_id"
 
 
+class EmptyRequestSerializer(serializers.Serializer):
+    """Marker serializer for endpoints that receive no JSON body."""
+
+
 def _issue_jwt(user) -> tuple[str, str]:
     refresh = RefreshToken.for_user(user)
     return str(refresh.access_token), str(refresh)
@@ -60,9 +65,11 @@ class MicrosoftLoginView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = EmptyRequestSerializer
 
     @extend_schema(
         summary="发起 Microsoft 登录",
+        request=None,
         description=(
             "返回用户应跳转的 Microsoft 授权 URL。"
             "前端 `window.location.href = data.authorize_url` 即可。"
@@ -90,13 +97,15 @@ class MicrosoftLoginView(APIView):
 
 
 class MicrosoftCallbackView(APIView):
-    """Microsoft 回调: 4 步换 token, 找/建用户, 签 JWT, 跳前端"""
+    """Microsoft 回调：换取 Minecraft 身份、找/建用户、签 JWT 并跳转前端。"""
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = EmptyRequestSerializer
 
     @extend_schema(
         summary="Microsoft 登录回调",
+        request=None,
         description="由 Microsoft 重定向调用，不要手动调。成功后 302 跳前端并携带 JWT。",
         parameters=[
             OpenApiParameter("code", str, OpenApiParameter.QUERY),
@@ -121,7 +130,7 @@ class MicrosoftCallbackView(APIView):
         if not expected_state or state != expected_state:
             return _redirect_frontend(error="invalid_state")
 
-        # 2. 跑 4 步换 token
+        # 2. 运行 Microsoft、Xbox 和 Minecraft Services 的上游换 token 流程
         try:
             profile = exchange_code_for_minecraft_profile(code)
         except MicrosoftOAuthError as e:
@@ -232,7 +241,9 @@ class MicrosoftCallbackView(APIView):
 class MicrosoftUnbindView(APIView):
     """解绑当前用户的微软/MC 账号"""
 
-    @extend_schema(summary="解绑微软账号", tags=["认证"])
+    serializer_class = EmptyRequestSerializer
+
+    @extend_schema(summary="解绑微软账号", request=None, tags=["认证"])
     def delete(self, request):
         deleted, _ = MicrosoftAccount.objects.filter(user=request.user).delete()
         if deleted:

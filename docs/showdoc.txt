@@ -6,6 +6,7 @@
 项目概览 | 项目说明 (README) | README.md
 项目概览 | 贡献指南 (CONTRIBUTING) | CONTRIBUTING.md
 项目概览 | 环境变量说明 | docs/showdoc/项目概览/环境变量说明.md
+项目概览 | Microsoft OAuth 配置指南 | docs/microsoft-oauth-setup.md
 
 # ==================== 开发规范 ====================
 开发规范 | Git 工作流 | docs/showdoc/开发规范/Git 工作流.md

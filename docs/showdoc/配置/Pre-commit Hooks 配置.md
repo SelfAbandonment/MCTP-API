@@ -5,10 +5,12 @@ Pre-commit 是在 `git commit` 时**自动运行的检查**，提交前拦截不
 ## 安装方式
 
 ```bash
-pip install pre-commit
-pre-commit install
-pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
+
+如需显式指定主提交钩子，使用 `uv run pre-commit install --hook-type pre-commit`。
+不要使用 `pre-commit install pre-commit`，因为 `pre-commit` 不是 `install` 的位置参数。
 
 ## 已配置的 Hooks
 

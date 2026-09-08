@@ -2,7 +2,7 @@
 
 本指南手把手带你完成 **Azure AD 应用注册** 和 **本项目 .env 配置**，最终实现"用微软账号登录 → 自动拿到 MC 玩家 UUID/用户名"。
 
-> 适用范围：MCTP-API。Microsoft 授权 → Xbox Live → XSTS → Minecraft Services → MC Profile，共 4 步换 token，全部在后端完成。
+> 适用范围：MCTP-API。Microsoft 授权 → Xbox Live → XSTS → Minecraft Services → MC Profile，共 5 个上游请求，全部在后端完成。
 
 ---
 
@@ -20,9 +20,9 @@
 |---|---|
 | **Name** | `MCTP Minecraft Login`（随便起，用户能看到） |
 | **Supported account types** | 选 **"Personal Microsoft accounts only"**（最简单，仅个人微软账号） |
-| **Redirect URI** | Platform 选 **Web**，URL 填 `https://api.mcreatopla.top:21009/api/v1/auth/microsoft/callback/` |
+| **Redirect URI** | Platform 选 **Web**，URL 填部署后的 API 地址加 `/api/v1/auth/microsoft/callback/` |
 
-> ⚠️ **本地调试**：再加一个 redirect `http://localhost:8000/api/v1/auth/microsoft/callback/`（在 Authentication 页可加多个）。  
+> ⚠️ **本地调试**：再加一个 redirect `http://localhost:8000/api/v1/auth/microsoft/callback/`（在 Authentication 页可加多个）。
 > ⚠️ **必须 HTTPS**（除 localhost），所以生产 API 域名先上 HTTPS。
 
 点 **Register** 提交。
@@ -51,18 +51,18 @@
 # ==== Microsoft OAuth ====
 MS_CLIENT_ID=f9a1c0d2-1234-5678-90ab-cdef12345678
 MS_CLIENT_SECRET=aBc7Q~xxxxxx
-MS_REDIRECT_URI=https://api.mcreatopla.top:21009/api/v1/auth/microsoft/callback/
+MS_REDIRECT_URI=https://<your-api-domain>/api/v1/auth/microsoft/callback/
 # 登录成功后跳回前端的地址（前端会从 query 拿 access/refresh token）
-FRONTEND_OAUTH_CALLBACK=https://mcreatopla.top/auth/microsoft/callback
+FRONTEND_OAUTH_CALLBACK=https://<your-frontend-domain>/auth/microsoft/callback
 # 用于加密存储 ms_refresh_token，生成方式: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 MS_TOKEN_FERNET_KEY=填写生成的 fernet key
 ```
 
-> 本地开发把 redirect 换成 `http://localhost:8000/api/v1/auth/microsoft/callback/`，前端回调换成 `http://localhost:5173/auth/microsoft/callback`。
+> 本地开发把 redirect 换成 `http://localhost:8000/api/v1/auth/microsoft/callback/`，前端回调换成 `http://localhost:5173/auth/microsoft/callback`。生产环境请使用实际部署域名，不要直接复制示例占位符。
 
 ---
 
-## 三、4 步换 token 流程速查
+## 三、上游 token 流程速查
 
 | # | 用啥 | 调谁 | 拿到啥 |
 |---|---|---|---|

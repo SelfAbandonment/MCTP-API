@@ -1,6 +1,6 @@
 # MCTP-API
 
-MCTP 项目后端 API，基于 Django 6.0 构建。
+MCTP 项目后端 API，基于 Django 6.0、Django REST Framework 和 SimpleJWT 构建。
 
 ## 🚀 快速开始
 
@@ -111,6 +111,9 @@ uv run pre-commit install
 uv run pre-commit install --hook-type commit-msg
 ```
 
+不要把 `pre-commit` 作为 `install` 的位置参数；如果需要显式指定主提交钩子，使用
+`uv run pre-commit install --hook-type pre-commit`。
+
 ## 🌐 API 文档
 
 启动服务器后访问：
@@ -118,7 +121,9 @@ uv run pre-commit install --hook-type commit-msg
 | 地址 | 说明 |
 |------|------|
 | [/api/docs/](http://127.0.0.1:8000/api/docs/) | Swagger UI 交互式文档 |
-| [/api/schema/](http://127.0.0.1:8000/api/schema/) | OpenAPI 3.0 Schema |
+| [/api/schema/](http://127.0.0.1:8000/api/schema/) | OpenAPI 3.0 YAML Schema |
+
+接口清单见 [`docs/showdoc/API 开发/API 端点列表.md`](docs/showdoc/API%20%E5%BC%80%E5%8F%91/API%20%E7%AB%AF%E7%82%B9%E5%88%97%E8%A1%A8.md)。
 
 ## �️ 开发环境统一配置
 

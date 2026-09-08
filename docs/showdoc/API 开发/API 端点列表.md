@@ -1,45 +1,48 @@
 # API 端点列表
 
-## 当前可用端点
+所有 API 均使用 `/api/v1/` 前缀。除特别说明外，错误响应遵循[统一响应格式](统一响应格式.md)。
 
-### 基础接口
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| `GET` | `/api/v1/health/` | 健康检查 | ❌ 不需要 |
-| `GET` | `/api/v1/health/detail/` | 详细健康检查（含组件状态） | ✅ 需要 |
-
-### 认证接口
+## 系统接口
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| `POST` | `/api/v1/auth/register/` | 用户注册 | ❌ 不需要 |
-| `POST` | `/api/v1/auth/token/` | 获取 JWT Token（登录） | ❌ 不需要 |
-| `POST` | `/api/v1/auth/token/refresh/` | 刷新 Access Token | ❌ 不需要 |
-| `GET` | `/api/v1/auth/me/` | 获取当前用户信息 | ✅ 需要 |
-| `PUT` | `/api/v1/auth/me/` | 更新当前用户信息 | ✅ 需要 |
-| `POST` | `/api/v1/auth/password/` | 修改密码 | ✅ 需要 |
+| `GET` | `/api/v1/health/` | 返回最小服务状态，不暴露调试信息 | 不需要 |
+| `GET` | `/api/v1/health/detail/` | 检查数据库和应用组件状态 | 需要 |
 
-### 文档接口
+## 本地账号认证
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| `POST` | `/api/v1/auth/register/` | 注册本地用户 | 不需要 |
+| `POST` | `/api/v1/auth/token/` | 用户名密码登录，获取 access/refresh token | 不需要 |
+| `POST` | `/api/v1/auth/token/refresh/` | 使用 refresh token 获取新 token | 不需要 |
+| `GET` | `/api/v1/auth/me/` | 获取当前用户信息 | 需要 |
+| `PUT` | `/api/v1/auth/me/` | 更新当前用户的用户名或邮箱 | 需要 |
+| `POST` | `/api/v1/auth/password/` | 修改密码并吊销已有 refresh token | 需要 |
+
+## Microsoft / Minecraft 账号
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| `GET` | `/api/v1/auth/microsoft/login/` | 生成 Microsoft 授权地址；可用于登录或绑定 | 可选 |
+| `GET` | `/api/v1/auth/microsoft/callback/` | 接收 Microsoft 回调并跳转前端 | 不需要 |
+| `DELETE` | `/api/v1/auth/microsoft/unbind/` | 解绑当前用户的 Microsoft/Minecraft 账号 | 需要 |
+
+完整配置和安全要求见[Microsoft OAuth 配置指南](../../microsoft-oauth-setup.md)。
+
+## 文档与管理后台
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/docs/` | Swagger UI 交互式文档 |
-| `GET` | `/api/schema/` | OpenAPI 3.0 Schema (YAML) |
-
-### 管理后台
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
+| `GET` | `/api/docs/` | Swagger UI |
+| `GET` | `/api/schema/` | OpenAPI 3.0 YAML Schema |
 | `GET` | `/admin/` | Django 管理后台 |
 
----
-
-## 接口响应示例
+## 统一响应示例
 
 ### 健康检查
 
-```
+```http
 GET /api/v1/health/
 ```
 
@@ -54,10 +57,11 @@ GET /api/v1/health/
 }
 ```
 
-### 用户注册
+### 注册
 
-```
+```http
 POST /api/v1/auth/register/
+Content-Type: application/json
 ```
 
 ```json
@@ -71,48 +75,10 @@ POST /api/v1/auth/register/
 
 ### 修改密码
 
-```
+```http
 POST /api/v1/auth/password/
-Authorization: Bearer <access_token>
+Authorization: Bearer <access-token>
+Content-Type: application/json
 ```
 
-```json
-{
-    "old_password": "OldPass123!",
-    "new_password": "NewPass456!",
-    "new_password_confirm": "NewPass456!"
-}
-```
-
-响应：
-
-```json
-{
-    "code": 200,
-    "message": "password changed successfully",
-    "data": null
-}
-```
-
----
-
-## 扩展新接口
-
-在对应 app 的 `views.py` 中添加视图，在 `urls.py` 中注册路由：
-
-```python
-# views.py
-from rest_framework.views import APIView
-from mctp_api.mctp_api_core.response import ApiResponse
-
-class MyView(APIView):
-    def get(self, request):
-        return ApiResponse.success(data={"key": "value"})
-
-# urls.py
-urlpatterns = [
-    path("my-endpoint/", MyView.as_view(), name="my-endpoint"),
-]
-```
-
-> 💡 更详细的接口文档请访问 `/api/docs/` (Swagger UI)，支持在线测试。
+修改密码成功后，用户已有的 refresh token 会进入黑名单，需要重新登录。

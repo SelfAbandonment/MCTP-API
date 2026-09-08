@@ -1,5 +1,5 @@
 """
-Microsoft / Xbox Live / Minecraft Services 4 步换 token 流程
+Microsoft / Xbox Live / Minecraft Services token exchange pipeline
 
 参考: https://wiki.vg/Microsoft_Authentication_Scheme
 """
@@ -67,7 +67,7 @@ def gen_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-# --------------------- 4 步换 token ---------------------
+# --------------------- upstream token exchange steps ---------------------
 
 
 def _ms_exchange_code(code: str) -> dict:
@@ -205,7 +205,7 @@ def _mc_profile(mc_access_token: str) -> tuple[str, str]:
 
 
 def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
-    """完整跑完 4 步流程，返回 Minecraft 档案 + ms_refresh_token"""
+    """Run the upstream exchange pipeline and return the Minecraft profile."""
     if not settings.MS_CLIENT_ID or not settings.MS_CLIENT_SECRET:
         raise MicrosoftOAuthError(
             "Microsoft OAuth 未配置（MS_CLIENT_ID/SECRET 缺失）",
@@ -238,7 +238,7 @@ def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
     )
 
 
-# --------------------- refresh_token 加密存储 ---------------------
+# --------------------- encrypted refresh-token storage ---------------------
 
 
 def _fernet() -> Fernet | None:
