@@ -1,6 +1,12 @@
 # MCTP-API
 
-MCTP 项目后端 API，基于 Django 6.0、Django REST Framework 和 SimpleJWT 构建。
+MCTP 项目后端 API，基于 Django 6.0、Django REST Framework、SimpleJWT 和 django-allauth 构建。
+
+账户与 Microsoft/Minecraft 登录已迁移到 **django-allauth + 自定义 Microsoft provider**，
+架构、环境变量与本地验证见 [allauth-auth](docs/allauth-auth.md)。
+
+社区公告与玩家管理接口、权限、分页及隔离本地验证说明见
+[Community management](docs/community-management.md)。
 
 ## 🚀 快速开始
 

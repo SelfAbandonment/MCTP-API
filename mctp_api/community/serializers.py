@@ -1,0 +1,79 @@
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
+from rest_framework import serializers
+
+from .models import Announcement
+
+
+class StrictInputMixin:
+    """Reject unrecognized and read-only inputs rather than silently discarding them."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            writable = {name for name, field in self.fields.items() if not field.read_only}
+            unexpected = set(data) - writable
+            if unexpected:
+                raise serializers.ValidationError({name: ["This field is not writable."] for name in unexpected})
+        return super().to_internal_value(data)
+
+
+class PublicAnnouncementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Announcement
+        fields = ("id", "title", "summary", "body", "published_at", "updated_at")
+        read_only_fields = fields
+
+
+class AnnouncementSerializer(StrictInputMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Announcement
+        fields = ("id", "title", "summary", "body", "is_published", "published_at", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate(self, attrs):
+        published = attrs.get("is_published", getattr(self.instance, "is_published", False))
+        published_at = attrs.get("published_at", getattr(self.instance, "published_at", None))
+        if published and published_at is None:
+            attrs["published_at"] = timezone.now()
+        return attrs
+
+
+class MinecraftPlayerSerializer(serializers.Serializer):
+    uuid = serializers.CharField(read_only=True)
+    username = serializers.CharField(read_only=True)
+
+
+class PlayerSerializer(serializers.ModelSerializer):
+    minecraft = serializers.SerializerMethodField()
+
+    class Meta:
+        model = get_user_model()
+        fields = (
+            "id",
+            "username",
+            "email",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "date_joined",
+            "last_login",
+            "minecraft",
+        )
+        read_only_fields = fields
+
+    @extend_schema_field(MinecraftPlayerSerializer(allow_null=True))
+    def get_minecraft(self, obj):
+        account = getattr(obj, "microsoft_account", None)
+        if account is None:
+            return None
+        return {"uuid": account.mc_uuid, "username": account.mc_username}
+
+
+class PlayerUpdateSerializer(StrictInputMixin, serializers.Serializer):
+    is_active = serializers.BooleanField(required=True)
+
+    def validate(self, attrs):
+        if "is_active" not in attrs:
+            raise serializers.ValidationError({"is_active": ["This field is required."]})
+        return attrs

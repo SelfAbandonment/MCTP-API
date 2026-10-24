@@ -9,7 +9,9 @@ from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
 )
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from mctp_api.auth.session_views import SafeTokenRefreshView
 
 token_obtain_view = extend_schema_view(
     post=extend_schema(
@@ -25,13 +27,18 @@ token_refresh_view = extend_schema_view(
         description="使用 refresh token 获取新的 access token。启用轮换时会同时返回新的 refresh token。",
         tags=["认证"],
     )
-)(TokenRefreshView.as_view())
+)(SafeTokenRefreshView.as_view())
 
 urlpatterns = [
     # Admin
     path("admin/", admin.site.urls),
+    # allauth: account + Microsoft social login (redirect/callback)
+    path("accounts/", include("allauth.urls")),
+    # allauth headless API used by the Vue SPA
+    path("_allauth/", include("allauth.headless.urls")),
     # API v1
     path("api/v1/", include("mctp_api.mctp_api_core.urls")),
+    path("api/v1/", include("mctp_api.community.urls")),
     # 用户认证
     path("api/v1/auth/", include("mctp_api.auth.urls")),
     # JWT Token
