@@ -51,12 +51,16 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", _allowed_ho
 # Application definition
 
 INSTALLED_APPS = [
+    # Admin
+    "unfold",
     "django.contrib.admin",
     "django.contrib.auth",
+    "unfold.contrib.forms",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Api
     "rest_framework_simplejwt.token_blacklist",
     # Third-party apps
     "rest_framework",
@@ -65,6 +69,7 @@ INSTALLED_APPS = [
     # Project apps
     "mctp_api.mctp_api_core",
     "mctp_api.auth",
+    "mctp_api.community",
 ]
 
 MIDDLEWARE = [
@@ -132,7 +137,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "zh-hans"
 
 TIME_ZONE = "UTC"
 

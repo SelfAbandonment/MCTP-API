@@ -2,6 +2,9 @@
 
 MCTP 项目后端 API，基于 Django 6.0、Django REST Framework 和 SimpleJWT 构建。
 
+社区公告与玩家管理接口、权限、分页及隔离本地验证说明见
+[Community management](docs/community-management.md)。
+
 ## 🚀 快速开始
 
 > **前置要求**：需要安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)

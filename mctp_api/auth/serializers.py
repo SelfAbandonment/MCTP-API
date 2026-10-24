@@ -4,6 +4,7 @@
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
@@ -47,6 +48,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+class MinecraftAccountSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    username = serializers.CharField()
+    bound_at = serializers.DateTimeField()
+
+
 class UserSerializer(serializers.ModelSerializer):
     """用户信息序列化器（读取）"""
 
@@ -54,9 +61,20 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "date_joined", "last_login", "minecraft")
-        read_only_fields = ("id", "date_joined", "last_login", "minecraft")
+        fields = (
+            "id",
+            "username",
+            "email",
+            "date_joined",
+            "last_login",
+            "minecraft",
+            "is_staff",
+            "is_superuser",
+            "is_active",
+        )
+        read_only_fields = ("id", "date_joined", "last_login", "minecraft", "is_staff", "is_superuser", "is_active")
 
+    @extend_schema_field(MinecraftAccountSerializer(allow_null=True))
     def get_minecraft(self, obj):
         ma = getattr(obj, "microsoft_account", None)
         if not ma:
@@ -66,6 +84,12 @@ class UserSerializer(serializers.ModelSerializer):
             "username": ma.mc_username,
             "bound_at": ma.created_at,
         }
+
+
+class UserResponseSerializer(serializers.Serializer):
+    code = serializers.IntegerField()
+    message = serializers.CharField()
+    data = UserSerializer()
 
 
 class ChangePasswordSerializer(serializers.Serializer):
