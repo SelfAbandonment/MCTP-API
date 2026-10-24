@@ -73,10 +73,11 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
-    # Project apps
-    "mctp_api.mctp_api_core",
+    # Project apps (mctp_api_core last so its admin customization can
+    # unregister/re-register the admin classes from the apps above)
     "mctp_api.auth",
     "mctp_api.community",
+    "mctp_api.mctp_api_core",
 ]
 
 MIDDLEWARE = [
@@ -104,7 +105,7 @@ ROOT_URLCONF = "mctp_api.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -314,3 +315,70 @@ HEADLESS_FRONTEND_URLS = {
 # allauth's provider callback URL is /accounts/microsoft/login/callback/.
 # Keep this in sync with the Azure app registration redirect URI.
 ALLAUTH_MICROSOFT_CALLBACK_PATH = "/accounts/microsoft/login/callback/"
+
+
+# ==================== django-unfold admin ====================
+
+UNFOLD = {
+    "SITE_TITLE": "MCTP 管理后台",
+    "SITE_HEADER": "MCTP · 方块社区",
+    "SITE_SUBHEADER": "社区运营与玩家管理",
+    "SITE_URL": os.getenv("FRONTEND_BASE_URL", "/"),
+    "INDEX_TITLE": "运营概览",
+    "THEME": "dark",
+    "DASHBOARD_CALLBACK": "mctp_api.mctp_api_core.dashboard.dashboard_callback",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "SHOW_LANGUAGES": False,
+    "SITE_ICON": "/static/admin/mctp-icon.svg",
+    "SITE_FAVICONS": [
+        {"rel": "icon", "type": "image/svg+xml", "href": "/static/admin/mctp-icon.svg"},
+    ],
+    "STYLES": ["/static/admin/mctp-admin.css"],
+    "COLORS": {
+        "primary": {
+            "50": "#f2fde8",
+            "100": "#e0fbc9",
+            "200": "#c4f79c",
+            "300": "#9fef68",
+            "400": "#7fe143",
+            "500": "#8ce06a",
+            "600": "#62b83f",
+            "700": "#4b9130",
+            "800": "#3d722a",
+            "900": "#345e27",
+            "950": "#19350f",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "社区运营",
+                "separator": False,
+                "items": [
+                    {"title": "公告", "icon": "campaign", "link": "/admin/community/announcement/"},
+                    {"title": "玩家", "icon": "person", "link": "/admin/auth/user/"},
+                    {"title": "用户组", "icon": "group", "link": "/admin/auth/group/"},
+                ],
+            },
+            {
+                "title": "账户与绑定",
+                "separator": True,
+                "items": [
+                    {"title": "微软绑定", "icon": "link", "link": "/admin/socialaccount/socialaccount/"},
+                    {"title": "邮箱", "icon": "mail", "link": "/admin/account/emailaddress/"},
+                    {"title": "旧版 MC 绑定", "icon": "history", "link": "/admin/mctp_auth/microsoftaccount/"},
+                ],
+            },
+            {
+                "title": "系统",
+                "separator": True,
+                "items": [
+                    {"title": "站点", "icon": "public", "link": "/admin/sites/site/"},
+                ],
+            },
+        ],
+    },
+}

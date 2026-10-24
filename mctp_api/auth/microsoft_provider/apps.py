@@ -8,5 +8,5 @@ class MicrosoftProviderConfig(AppConfig):
 
     name = "mctp_api.auth.microsoft_provider"
     label = "mctp_microsoft"
-    verbose_name = "Minecraft Microsoft Provider"
+    verbose_name = "微软登录"
     default_auto_field = "django.db.models.BigAutoField"

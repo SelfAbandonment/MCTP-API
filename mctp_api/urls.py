@@ -9,7 +9,9 @@ from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
 )
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from mctp_api.auth.session_views import SafeTokenRefreshView
 
 token_obtain_view = extend_schema_view(
     post=extend_schema(
@@ -25,7 +27,7 @@ token_refresh_view = extend_schema_view(
         description="使用 refresh token 获取新的 access token。启用轮换时会同时返回新的 refresh token。",
         tags=["认证"],
     )
-)(TokenRefreshView.as_view())
+)(SafeTokenRefreshView.as_view())
 
 urlpatterns = [
     # Admin

@@ -248,3 +248,18 @@ class MicrosoftProviderTests(APITestCase):
             reverse("microsoft_callback"),
             "/accounts/microsoft/login/callback/",
         )
+
+
+class TokenRefreshTests(APITestCase):
+    def test_deleted_user_refresh_token_returns_401_not_500(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        user = User.objects.create_user(username="deleted-refresh-user", password="StrongPass123!")
+        token = str(RefreshToken.for_user(user))
+        user.delete()
+
+        response = self.client.post("/api/v1/auth/token/refresh/", {"refresh": token}, content_type="application/json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["code"], 401)
+        self.assertEqual(response.data["message"], "登录已失效，请重新登录")

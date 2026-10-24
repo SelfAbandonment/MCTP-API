@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from allauth.socialaccount.models import SocialAccount
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from mctp_api.auth.models import MicrosoftAccount
 from mctp_api.auth.serializers import UserSerializer
@@ -15,6 +18,16 @@ from mctp_api.mctp_api_core.response import ApiResponse
 
 class EmptySerializer(serializers.Serializer):
     """Schema marker for views without a request body."""
+
+
+class SafeTokenRefreshView(TokenRefreshView):
+    """Return 401 instead of 500 when a refresh token references a deleted user."""
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except (get_user_model().DoesNotExist, ObjectDoesNotExist):
+            return ApiResponse.unauthorized("登录已失效，请重新登录")
 
 
 class SessionTokenObtainView(APIView):
