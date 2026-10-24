@@ -2,27 +2,13 @@
 认证模块测试
 """
 
-from types import SimpleNamespace
-from unittest.mock import patch
-
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
-from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from mctp_api.auth.models import MicrosoftAccount
-
 User = get_user_model()
-
-
-class MicrosoftLoginTests(APITestCase):
-    @override_settings(MS_CLIENT_ID="")
-    def test_login_reports_missing_configuration(self):
-        response = self.client.get("/api/v1/auth/microsoft/login/")
-
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.assertEqual(response.data["message"], "Microsoft OAuth 未配置")
 
 
 class RegisterTests(APITestCase):
@@ -163,34 +149,102 @@ class ChangePasswordTests(APITestCase):
         self.assertEqual(token_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class MicrosoftCallbackTests(APITestCase):
-    @patch("mctp_api.auth.microsoft_views.exchange_code_for_minecraft_profile")
-    def test_callback_bind_conflict_does_not_issue_other_users_token(self, mock_exchange):
-        target_user = User.objects.create_user(username="target", email="target@example.com", password="pass123")
-        existing_user = User.objects.create_user(username="owner", email="owner@example.com", password="pass123")
-        MicrosoftAccount.objects.create(
-            user=existing_user,
-            mc_uuid="1234567890abcdef1234567890abcdef",
-            mc_username="Steve",
+class SessionBridgeTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="session-user",
+            email="session@example.com",
+            password="StrongPass123!",
         )
 
-        mock_exchange.return_value = SimpleNamespace(
-            uuid="1234567890abcdef1234567890abcdef",
-            username="Steve",
-            ms_refresh_token="refresh-token",
+    def test_session_token_requires_authentication(self):
+        response = self.client.post("/api/v1/auth/token/session/")
+
+        # SessionAuthentication reports an unauthenticated request as 403.
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_session_token_returns_jwt_pair_and_user(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post("/api/v1/auth/token/session/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["code"], 200)
+        data = response.data["data"]
+        self.assertIn("access", data)
+        self.assertIn("refresh", data)
+        self.assertEqual(data["user"]["username"], "session-user")
+        # The returned refresh token must be usable by the existing JWT API.
+        refresh = self.client.post("/api/v1/auth/token/refresh/", {"refresh": data["refresh"]})
+        self.assertEqual(refresh.status_code, status.HTTP_200_OK)
+
+    def test_allauth_headless_password_login_then_exchange(self):
+        # allauth headless browser client: login with the regular account.
+        response = self.client.post(
+            "/_allauth/browser/v1/auth/login",
+            {"username": "session-user", "password": "StrongPass123!"},
+            content_type="application/json",
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json()["meta"]["is_authenticated"])
 
-        session = self.client.session
-        session["ms_oauth_state"] = "expected-state"
-        session["ms_oauth_bind_user_id"] = target_user.id
-        session.save()
+        exchange = self.client.post("/api/v1/auth/token/session/")
+        self.assertEqual(exchange.status_code, status.HTTP_200_OK)
+        self.assertIn("access", exchange.data["data"])
 
-        response = self.client.get(
-            "/api/v1/auth/microsoft/callback/",
-            {"code": "oauth-code", "state": "expected-state"},
+    def test_headless_config_is_public(self):
+        response = self.client.get("/_allauth/browser/v1/config")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("data", response.json())
+
+
+class MicrosoftUnbindTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="bound-user", password="StrongPass123!")
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="microsoft",
+            uid="0123456789abcdef0123456789abcdef",
+            extra_data={"mc_uuid": "0123456789abcdef0123456789abcdef", "mc_username": "Steve"},
         )
+        token = RefreshToken.for_user(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
 
-        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertIn("error=mc_already_bound", response["Location"])
-        self.assertNotIn("access=", response["Location"])
-        self.assertNotIn("refresh=", response["Location"])
+    def test_unbind_removes_social_account(self):
+        response = self.client.delete("/api/v1/auth/microsoft/unbind/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(SocialAccount.objects.filter(user=self.user, provider="microsoft").exists())
+
+    def test_unbind_without_binding_returns_404(self):
+        SocialAccount.objects.filter(user=self.user).delete()
+
+        response = self.client.delete("/api/v1/auth/microsoft/unbind/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class MicrosoftProviderTests(APITestCase):
+    def test_provider_registered_with_minecraft_uid(self):
+        from types import SimpleNamespace
+
+        from allauth.socialaccount import providers
+
+        provider = providers.registry.get_class("microsoft")
+        self.assertIsNotNone(provider)
+        self.assertEqual(provider.id, "microsoft")
+        # Provider instances require an allauth app; a minimal stand-in is
+        # enough to exercise the pure extraction helpers.
+        app = SimpleNamespace(pk=None, provider="microsoft", settings={}, client_id="client", secret="secret")
+        instance = provider(SimpleNamespace(), app=app)
+        self.assertEqual(instance.extract_uid({"mc_uuid": "abc"}), "abc")
+        self.assertEqual(instance.get_default_scope(), ["XboxLive.signin", "offline_access"])
+
+    def test_provider_callback_url_is_allauth_callback(self):
+        from django.urls import reverse
+
+        self.assertEqual(
+            reverse("microsoft_callback"),
+            "/accounts/microsoft/login/callback/",
+        )

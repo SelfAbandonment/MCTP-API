@@ -20,10 +20,11 @@
 |---|---|
 | **Name** | `MCTP Minecraft Login`（随便起，用户能看到） |
 | **Supported account types** | 选 **"Personal Microsoft accounts only"**（最简单，仅个人微软账号） |
-| **Redirect URI** | Platform 选 **Web**，URL 填部署后的 API 地址加 `/api/v1/auth/microsoft/callback/` |
+| **Redirect URI** | Platform 选 **Web**，URL 填部署后的 API 地址加 `/accounts/microsoft/login/callback/`（allauth 回调） |
 
-> ⚠️ **本地调试**：再加一个 redirect `http://localhost:8000/api/v1/auth/microsoft/callback/`（在 Authentication 页可加多个）。
+> ⚠️ **本地调试**：再加一个 redirect `http://localhost:8000/accounts/microsoft/login/callback/`（在 Authentication 页可加多个）。
 > ⚠️ **必须 HTTPS**（除 localhost），所以生产 API 域名先上 HTTPS。
+> ⚠️ 旧的 `/api/v1/auth/microsoft/callback/` 已移除，Azure 上的旧 URI 可以删掉。
 
 点 **Register** 提交。
 
@@ -48,17 +49,31 @@
 在 `MCTP-API/.env`（本地）和 **Coolify 环境变量面板**（生产）添加：
 
 ```bash
-# ==== Microsoft OAuth ====
+# ==== django-allauth / Microsoft ====
 MS_CLIENT_ID=f9a1c0d2-1234-5678-90ab-cdef12345678
 MS_CLIENT_SECRET=aBc7Q~xxxxxx
-MS_REDIRECT_URI=https://<your-api-domain>/api/v1/auth/microsoft/callback/
-# 登录成功后跳回前端的地址（前端会从 query 拿 access/refresh token）
-FRONTEND_OAUTH_CALLBACK=https://<your-frontend-domain>/auth/microsoft/callback
+# Azure 的 Redirect URI 使用 allauth 回调（见上），无需 MS_REDIRECT_URI
+# 登录成功后浏览器的落点（Vue hash 路由，必须带 #）
+FRONTEND_OAUTH_CALLBACK=https://<your-frontend-domain>/#/auth/microsoft/callback
+FRONTEND_BASE_URL=https://<your-frontend-domain>
+# SPA 与 API 不同端口时的跨域 / CSRF 白名单
+CORS_ALLOWED_ORIGINS=https://<your-frontend-domain>
+CSRF_TRUSTED_ORIGINS=https://<your-frontend-domain>
 # 用于加密存储 ms_refresh_token，生成方式: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 MS_TOKEN_FERNET_KEY=填写生成的 fernet key
 ```
 
-> 本地开发把 redirect 换成 `http://localhost:8000/api/v1/auth/microsoft/callback/`，前端回调换成 `http://localhost:5173/auth/microsoft/callback`。生产环境请使用实际部署域名，不要直接复制示例占位符。
+> 本地开发用 `http://localhost:8000/accounts/microsoft/login/callback/` 和 `http://localhost:5173/#/auth/microsoft/callback`，且前端建议用 `http://localhost:5173`（不要和 API 的 `127.0.0.1` 混用，否则 session/CSRF cookie 不同域）。生产环境请使用实际部署域名，不要直接复制示例占位符。
+
+---
+
+## 二·五、认证架构（allauth headless）
+
+- 账户、密码登录、注册、Microsoft 社交登录全部由 **django-allauth** 接管：
+  - 浏览器接口：`/_allauth/browser/v1/...`（session cookie + CSRF）
+  - 自定义 Microsoft provider：`mctp_api/auth/microsoft_provider/`，使用 `login.live.com` + `XboxLive.signin` scope，内部继续走 Xbox/XSTS/Minecraft 链路。
+- 前端登录成功后调用 `POST /api/v1/auth/token/session/`，用 allauth session 换取 SimpleJWT，后续 `/api/v1/` 仍用 Bearer Token。
+- 旧的自定义 `/api/v1/auth/microsoft/login|callback/` 已移除；旧 `MicrosoftAccount` 表仅作为历史数据保留，不再写入。
 
 ---
 

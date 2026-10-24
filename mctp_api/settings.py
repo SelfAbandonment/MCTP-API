@@ -53,13 +53,20 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", _allowed_ho
 INSTALLED_APPS = [
     # Admin
     "unfold",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
-    "unfold.contrib.forms",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
+    # Authentication (allauth)
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.headless",
+    "mctp_api.auth.microsoft_provider",
     # Api
     "rest_framework_simplejwt.token_blacklist",
     # Third-party apps
@@ -80,9 +87,17 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+SITE_ID = 1
 
 ROOT_URLCONF = "mctp_api.urls"
 
@@ -189,6 +204,36 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-session-token",
+    "x-email-verification-key",
+    "x-password-reset-key",
+)
+
+# Microsoft OAuth callback (headless allauth) is same-site in local development;
+# GitHub Pages cross-site cookies require SameSite=None + Secure or a same-site
+# frontend proxy. Keep Lax for localhost and revisit at deployment time.
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
 
 
 # ==================== OpenAPI configuration (drf-spectacular) ====================
@@ -203,14 +248,12 @@ SPECTACULAR_SETTINGS = {
 
 
 # ==================== Microsoft OAuth / Minecraft configuration ====================
+# The allauth provider callback is /accounts/microsoft/login/callback/ (Azure App
+# Registration redirect URI). MS_REDIRECT_URI from the legacy custom flow is no
+# longer used.
 
 MS_CLIENT_ID = _env_first("MS_CLIENT_ID", "MS_OAUTH_CLIENT_ID")
 MS_CLIENT_SECRET = _env_first("MS_CLIENT_SECRET", "MS_OAUTH_CLIENT_SECRET")
-MS_REDIRECT_URI = _env_first(
-    "MS_REDIRECT_URI",
-    "MS_OAUTH_REDIRECT_URI",
-    "http://localhost:8000/api/v1/auth/microsoft/callback/",
-)
 FRONTEND_OAUTH_CALLBACK = os.getenv(
     "FRONTEND_OAUTH_CALLBACK",
     "http://localhost:5173/#/auth/microsoft/callback",
@@ -221,3 +264,53 @@ MS_TOKEN_FERNET_KEY = _env_first("MS_TOKEN_FERNET_KEY", "MS_REFRESH_TOKEN_FERNET
 
 if not DEBUG and (MS_CLIENT_ID or MS_CLIENT_SECRET) and not MS_TOKEN_FERNET_KEY:
     raise ImproperlyConfigured("MS_TOKEN_FERNET_KEY is required when Microsoft OAuth is enabled")
+
+# ==================== django-allauth (headless + Microsoft/Minecraft) ====================
+# The account system is owned by allauth. Headless browser endpoints are used by
+# the Vue SPA (local development: same-site localhost); the SPA exchanges the
+# allauth session for a short-lived SimpleJWT pair through
+# POST /api/v1/auth/token/session/ so the existing API keeps using Bearer JWT.
+
+HEADLESS_ONLY = True
+HEADLESS_CLIENTS = ("browser",)
+
+ACCOUNT_LOGIN_METHODS = {"username"}
+ACCOUNT_SIGNUP_FIELDS = ["username*", "email*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_USERNAME_MIN_LENGTH = 3
+LOGIN_REDIRECT_URL = "/"
+ACCOUNT_LOGOUT_REDIRECT_URL = "/"
+
+SOCIALACCOUNT_ADAPTER = "mctp_api.auth.adapters.MCTPSocialAccountAdapter"
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_REQUIRED = False
+SOCIALACCOUNT_QUERY_EMAIL = False
+SOCIALACCOUNT_STORE_TOKENS = False
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_PROVIDERS = {
+    "microsoft": {
+        "APP": {
+            "client_id": MS_CLIENT_ID,
+            "secret": MS_CLIENT_SECRET,
+        },
+        "SCOPE": ["XboxLive.signin", "offline_access"],
+        "AUTH_PARAMS": {"prompt": "select_account"},
+        # The custom provider uses login.live.com (consumer endpoint). Azure app
+        # registration must allow personal Microsoft accounts and the
+        # XboxLive.signin scope.
+        "OAUTH_PKCE_ENABLED": False,
+    }
+}
+
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+HEADLESS_FRONTEND_URLS = {
+    "socialaccount_login_error": FRONTEND_OAUTH_CALLBACK,
+    "account_confirm_email": f"{FRONTEND_BASE_URL}/#/account/verify-email/{{key}}",
+    "account_reset_password_from_key": f"{FRONTEND_BASE_URL}/#/account/password/reset/key/{{key}}",
+    "account_signup": f"{FRONTEND_BASE_URL}/#/register",
+}
+
+# allauth's provider callback URL is /accounts/microsoft/login/callback/.
+# Keep this in sync with the Azure app registration redirect URI.
+ALLAUTH_MICROSOFT_CALLBACK_PATH = "/accounts/microsoft/login/callback/"

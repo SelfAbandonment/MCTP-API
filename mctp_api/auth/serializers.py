@@ -76,6 +76,20 @@ class UserSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(MinecraftAccountSerializer(allow_null=True))
     def get_minecraft(self, obj):
+        # New flow: allauth SocialAccount is the source of truth.
+        from allauth.socialaccount.models import SocialAccount
+
+        social = SocialAccount.objects.filter(user=obj, provider="microsoft").first()
+        if social:
+            data = social.extra_data or {}
+            if data.get("mc_uuid"):
+                return {
+                    "uuid": data["mc_uuid"],
+                    "username": data.get("mc_username", ""),
+                    "bound_at": social.date_joined,
+                }
+
+        # Legacy fallback for bindings created by the previous custom OAuth flow.
         ma = getattr(obj, "microsoft_account", None)
         if not ma:
             return None

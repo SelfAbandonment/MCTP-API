@@ -30,6 +30,10 @@ token_refresh_view = extend_schema_view(
 urlpatterns = [
     # Admin
     path("admin/", admin.site.urls),
+    # allauth: account + Microsoft social login (redirect/callback)
+    path("accounts/", include("allauth.urls")),
+    # allauth headless API used by the Vue SPA
+    path("_allauth/", include("allauth.headless.urls")),
     # API v1
     path("api/v1/", include("mctp_api.mctp_api_core.urls")),
     path("api/v1/", include("mctp_api.community.urls")),

@@ -39,4 +39,5 @@ class OpenApiSchemaTests(APITestCase):
         self.assertIn("/api/v1/auth/register/", response.data["paths"])
         self.assertIn("/api/v1/auth/token/", response.data["paths"])
         self.assertIn("/api/v1/auth/token/refresh/", response.data["paths"])
-        self.assertIn("/api/v1/auth/microsoft/login/", response.data["paths"])
+        self.assertIn("/api/v1/auth/token/session/", response.data["paths"])
+        self.assertIn("/api/v1/auth/microsoft/unbind/", response.data["paths"])
