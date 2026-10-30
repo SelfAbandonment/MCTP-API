@@ -26,9 +26,9 @@
 
 ## 状态回写
 
-`Jenkinsfile` 的 post 阶段调用 `githubNotify`，context 为 `jenkins/mctp-api`，凭证 `github-MCTP`（token 需要 `repo:status` 权限）。
+GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`continuous-integration/jenkins/branch` 和 `continuous-integration/jenkins/pr-merge`。
 
-打通后在分支保护的必需检查里加 `jenkins/mctp-api`。
+注意：这个版本的 `github` 插件没有 `githubNotify` 步骤，脚本里调用会报 `NoSuchMethodError`，所以流水线不自己回写状态。
 
 ## 参数
 
