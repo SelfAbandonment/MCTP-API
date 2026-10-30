@@ -1,4 +1,4 @@
-# GitHub Actions CI/CD
+﻿# GitHub Actions CI/CD
 
 工作流文件：[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)。
 
@@ -40,9 +40,9 @@
 
 分支保护里应勾选：
 
-- `MCTP-API CI / lint`
-- `MCTP-API CI / test`
-- `MCTP-API CI / docker`（可选）
+- `lint`
+- `test`
+- `docker`（可选）
 
 job 改名会让分支保护的检查项静默失效，改名前先同步仓库设置。
 

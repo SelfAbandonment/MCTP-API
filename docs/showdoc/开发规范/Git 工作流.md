@@ -1,4 +1,4 @@
-# Git 工作流
+﻿# Git 工作流
 
 > 本文件是分支与合并规则的**唯一真源**。`AGENTS.md`、权限矩阵、各仓库 README 只做摘要；出现冲突时以本文件为准。
 
@@ -43,9 +43,9 @@ git push origin feat/user-auth
 
 **必需检查的名称**来自工作流 job 名，改名会让保护规则静默失效：
 
-- `MCTP-API CI / lint`
-- `MCTP-API CI / test`
-- `Docker 构建 / docker`（可选）
+- `lint`
+- `test`
+- `docker`（可选，仅 develop）
 
 ## 发布流程
 
