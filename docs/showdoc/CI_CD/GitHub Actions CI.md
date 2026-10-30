@@ -1,59 +1,69 @@
-# GitHub Actions CI/CD
+﻿# GitHub Actions CI/CD
 
-项目使用 GitHub Actions 实现自动化持续集成。开发分支会执行快照构建，生产分支会执行生产镜像构建。
+工作流文件：[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)。
 
 ## 触发条件
 
-| 事件 | 触发分支 |
-|------|---------|
-| `push` (代码推送) | `main`、`develop` |
-| `pull_request` (PR) | `main`、`develop` |
-
-## 流水线阶段
-
-### 阶段一：Lint（代码检查）
-
-| 步骤 | 说明 |
+| 事件 | 分支 |
 |------|------|
-| 检出代码 | `actions/checkout@v4` |
-| 安装 Python 3.12 | `actions/setup-python@v5` (带 pip 缓存) |
-| 安装 ruff | 代码检查工具 |
-| `ruff check .` | 检查代码问题 |
-| `ruff format --check .` | 检查代码格式 |
+| `push` | `main`、`develop` |
+| `pull_request` | 目标为 `main` 或 `develop` |
+| `workflow_dispatch` | 手动重跑 |
 
-### 阶段二：Test（测试） — 依赖 Lint 通过
+同一分支/PR 上重复触发会取消旧的一轮（`concurrency.cancel-in-progress`），工作流只申请 `contents: read`。
 
-| 步骤 | 说明 |
-|------|------|
-| 检出代码 | `actions/checkout@v4` |
-| 安装 Python 3.12 | `astral-sh/setup-uv@v4` |
-| 安装依赖 | `uv sync --dev` |
-| Django check | 检查项目配置是否正确 |
-| Django test | 运行所有单元测试 |
+## 检查阶段
 
-### 阶段三：Develop 快照构建 — 依赖 Lint 和 Test 通过
+### Lint（timeout 10 分钟）
 
-目标为 `develop` 的 PR，以及推送到 `develop` 的提交，会构建带有 commit SHA 的 Docker 快照标签。快照不会推送到镜像仓库，只用于验证生产镜像可以构建。
+使用 `astral-sh/setup-uv@v4` 安装 Python 3.12 依赖，执行：
 
-### 阶段四：Production 构建 — 依赖 Lint 和 Test 通过
+- `uv run ruff check .`
+- `uv run ruff format --check .`
 
-面向 `main` 的发布 PR 和推送到 `main` 的提交会构建带有 commit SHA 的生产镜像标签。生产部署由 Coolify 监听 `main` 分支执行。
+### Test（timeout 15 分钟，依赖 lint）
 
-## 流程图
+- `uv run python manage.py check`
+- `uv run python manage.py test --verbosity=2`
 
+`SECRET_KEY` 与 `DEBUG` 在 job 级通过 `env` 注入 CI 专用假值，不会连接生产数据库。
+
+### Develop 快照构建（timeout 20 分钟）
+
+目标为 `develop` 的 PR，以及推送到 `develop` 的提交，在 lint 和 test 通过后执行 Docker 构建。镜像使用 commit SHA 标签，只验证 Dockerfile 与依赖可构建，不推送镜像仓库。
+
+### Production 构建（timeout 20 分钟）
+
+目标为 `main` 的发布 PR，以及推送到 `main` 的提交，在 lint 和 test 通过后执行生产镜像构建。同样不推送镜像；Coolify 监听 `main` 完成部署。
+
+## 必需检查
+
+分支保护里应勾选：
+
+- `lint`
+- `test`
+- `docker`（可选）
+
+job 改名会让分支保护的检查项静默失效，改名前先同步仓库设置。
+
+## 发布顺序
+
+```text
+功能分支
+  → PR develop
+  → lint + test + develop 快照
+  → 合并 develop
+  → 验证 develop
+  → PR main
+  → lint + test + production 构建
+  → 合并 main
+  → main push + production 构建
+  → Coolify 部署
 ```
-Push/PR → Lint (ruff check + format)
-              ├── ❌ 失败 → 阻止合并
-              └── ✅ 通过 → Test (Django check + test)
-                                ├── ❌ 失败 → 阻止合并
-                                ├── ✅ 通过 → Develop 快照构建
-                                └── ✅ 通过 → 允许合并
 
-Main Push → Lint + Test → Production 构建 → Coolify 部署
-```
+GitHub Actions 缓存后端不是发布依赖；不要在工作流中重新引入未经仓库验证的 `type=gha` Buildx cache 配置。
 
-## 查看结果
+## 配套工作流
 
-- 进入 GitHub 仓库 → **Actions** 标签页
-- 每次推送/PR 都会生成一条运行记录
-- 绿色 ✅ 表示通过，红色 ❌ 表示失败，点击查看详细日志
+- `auto-label.yml`：按分支前缀给 PR 打标签，分支改名时回收旧标签；标签不存在或 fork PR 只告警、不失败。
+- `dependabot.yml`：每周一检查 `uv` 依赖与 GitHub Actions，Docker 基础镜像按月检查。

@@ -70,7 +70,7 @@ test-v: ## 运行测试（详细输出）
 
 .PHONY: hooks
 hooks: ## 安装 pre-commit hooks
-	uv run python -m pre_commit install --overwrite
+	uv run python -m pre_commit install --hook-type pre-commit --overwrite
 	uv run python -m pre_commit install --hook-type commit-msg --overwrite
 	@git config core.autocrlf false
 	@sed -i.bak 's/\r//' .git/hooks/pre-commit .git/hooks/commit-msg 2>/dev/null && rm -f .git/hooks/pre-commit.bak .git/hooks/commit-msg.bak || true

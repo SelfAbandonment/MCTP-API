@@ -6,7 +6,13 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
-from mctp_api.auth.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer, UserUpdateSerializer
+from mctp_api.auth.serializers import (
+    ChangePasswordSerializer,
+    RegisterSerializer,
+    UserResponseSerializer,
+    UserSerializer,
+    UserUpdateSerializer,
+)
 from mctp_api.mctp_api_core.response import ApiResponse
 
 
@@ -65,14 +71,7 @@ class MeView(APIView):
         summary="获取当前用户信息",
         description="返回已认证用户的个人资料",
         responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "code": {"type": "integer"},
-                    "message": {"type": "string"},
-                    "data": {"type": "object"},
-                },
-            },
+            200: UserResponseSerializer,
         },
         tags=["认证"],
     )
@@ -84,14 +83,7 @@ class MeView(APIView):
         description="更新已认证用户的 username 或 email",
         request=UserUpdateSerializer,
         responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "code": {"type": "integer"},
-                    "message": {"type": "string"},
-                    "data": {"type": "object"},
-                },
-            },
+            200: UserResponseSerializer,
             400: {
                 "type": "object",
                 "properties": {

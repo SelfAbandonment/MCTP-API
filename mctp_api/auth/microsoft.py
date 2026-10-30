@@ -1,5 +1,5 @@
 """
-Microsoft / Xbox Live / Minecraft Services 4 步换 token 流程
+Microsoft / Xbox Live / Minecraft Services token exchange pipeline
 
 参考: https://wiki.vg/Microsoft_Authentication_Scheme
 """
@@ -67,7 +67,7 @@ def gen_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-# --------------------- 4 步换 token ---------------------
+# --------------------- upstream token exchange steps ---------------------
 
 
 def _ms_exchange_code(code: str) -> dict:
@@ -204,8 +204,13 @@ def _mc_profile(mc_access_token: str) -> tuple[str, str]:
     return body["id"], body["name"]
 
 
-def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
-    """完整跑完 4 步流程，返回 Minecraft 档案 + ms_refresh_token"""
+def complete_minecraft_login(ms_access_token: str, ms_refresh_token: str = "") -> MinecraftProfile:
+    """Continue from a Microsoft access token through Xbox Live, XSTS and Minecraft.
+
+    Used by the allauth custom provider: allauth performs the Microsoft OAuth
+    handshake, then hands us the Microsoft access token. Everything from here on
+    is the same Xbox Live / XSTS / Minecraft Services pipeline as before.
+    """
     if not settings.MS_CLIENT_ID or not settings.MS_CLIENT_SECRET:
         raise MicrosoftOAuthError(
             "Microsoft OAuth 未配置（MS_CLIENT_ID/SECRET 缺失）",
@@ -214,11 +219,7 @@ def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
         )
 
     try:
-        ms = _ms_exchange_code(code)
-        ms_access = ms["access_token"]
-        ms_refresh = ms.get("refresh_token", "")
-
-        xbl_token, _ = _xbl_authenticate(ms_access)
+        xbl_token, _ = _xbl_authenticate(ms_access_token)
         xsts_token, uhs = _xsts_authenticate(xbl_token)
         mc_token = _mc_login(uhs, xsts_token)
         uuid, username = _mc_profile(mc_token)
@@ -233,12 +234,25 @@ def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
     return MinecraftProfile(
         uuid=uuid,
         username=username,
-        ms_refresh_token=ms_refresh,
+        ms_refresh_token=ms_refresh_token,
         ms_account_id="",
     )
 
 
-# --------------------- refresh_token 加密存储 ---------------------
+def exchange_code_for_minecraft_profile(code: str) -> MinecraftProfile:
+    """Run the upstream exchange pipeline and return the Minecraft profile."""
+    if not settings.MS_CLIENT_ID or not settings.MS_CLIENT_SECRET:
+        raise MicrosoftOAuthError(
+            "Microsoft OAuth 未配置（MS_CLIENT_ID/SECRET 缺失）",
+            code="ms_oauth_not_configured",
+            http_status=500,
+        )
+
+    ms = _ms_exchange_code(code)
+    return complete_minecraft_login(ms["access_token"], ms.get("refresh_token", ""))
+
+
+# --------------------- encrypted refresh-token storage ---------------------
 
 
 def _fernet() -> Fernet | None:

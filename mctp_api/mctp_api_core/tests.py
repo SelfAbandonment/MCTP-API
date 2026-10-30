@@ -37,3 +37,7 @@ class OpenApiSchemaTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["openapi"], "3.0.3")
         self.assertIn("/api/v1/auth/register/", response.data["paths"])
+        self.assertIn("/api/v1/auth/token/", response.data["paths"])
+        self.assertIn("/api/v1/auth/token/refresh/", response.data["paths"])
+        self.assertIn("/api/v1/auth/token/session/", response.data["paths"])
+        self.assertIn("/api/v1/auth/microsoft/unbind/", response.data["paths"])
