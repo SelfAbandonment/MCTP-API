@@ -1,12 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import SearchFilter
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
+from rest_framework.views import APIView
 
 from mctp_api.mctp_api_core.response import ApiResponse
 
@@ -16,11 +18,24 @@ from .schemas import (
     ANNOUNCEMENT_LIST,
     DELETE_RESPONSE,
     ERROR_RESPONSE,
+    OVERVIEW_RESPONSE,
     PLAYER_DETAIL,
     PLAYER_LIST,
+    PUBLIC_DETAIL,
     PUBLIC_LIST,
 )
-from .serializers import AnnouncementSerializer, PlayerSerializer, PlayerUpdateSerializer, PublicAnnouncementSerializer
+from .serializers import (
+    AnnouncementSerializer,
+    CommunityOverviewSerializer,
+    PlayerSerializer,
+    PlayerUpdateSerializer,
+    PublicAnnouncementSerializer,
+)
+
+
+def public_announcements():
+    """已发布且可见时间已到的公告；公开列表、公开详情与概览统计共用同一口径。"""
+    return Announcement.objects.filter(is_published=True, published_at__lte=timezone.now())
 
 
 class IsActiveStaff(BasePermission):
@@ -78,9 +93,66 @@ class PublicAnnouncementListView(generics.ListAPIView):
     authentication_classes = []
     serializer_class = PublicAnnouncementSerializer
     pagination_class = CommunityPagination
+    filter_backends = [SearchFilter]
+    search_fields = ("title", "summary", "body")
 
     def get_queryset(self):
-        return Announcement.objects.filter(is_published=True, published_at__lte=timezone.now())
+        return public_announcements()
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Community"],
+        summary="Retrieve a published announcement",
+        description="Drafts, scheduled announcements and unknown ids all return 404.",
+        responses={200: PUBLIC_DETAIL, **ERRORS},
+    )
+)
+class PublicAnnouncementDetailView(EnvelopeMixin, generics.RetrieveAPIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = PublicAnnouncementSerializer
+
+    def get_queryset(self):
+        return public_announcements()
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Community"],
+        summary="Community overview",
+        description="Player and announcement counters for the signed-in player dashboard.",
+        responses={200: OVERVIEW_RESPONSE, **ERRORS},
+    )
+)
+class CommunityOverviewView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CommunityOverviewSerializer
+
+    def get(self, request):
+        now = timezone.now()
+        published = Announcement.objects.filter(is_published=True, published_at__lte=now)
+        players = get_user_model().objects
+        bound_players = (
+            players.filter(Q(socialaccount__provider="microsoft") | Q(microsoft_account__isnull=False))
+            .distinct()
+            .count()
+        )
+        payload = {
+            "announcements": {
+                "published": published.count(),
+                "latest_published_at": published.order_by("-published_at")
+                .values_list("published_at", flat=True)
+                .first(),
+            },
+            "players": {
+                "total": players.count(),
+                "active": players.filter(is_active=True).count(),
+                "minecraft_bound": bound_players,
+            },
+            "generated_at": now,
+        }
+        return ApiResponse.success(data=CommunityOverviewSerializer(payload).data)
 
 
 @extend_schema_view(
@@ -112,8 +184,21 @@ class PlayerListView(generics.ListAPIView):
     serializer_class = PlayerSerializer
     pagination_class = CommunityPagination
     filter_backends = [SearchFilter]
-    search_fields = ("username", "email", "microsoft_account__mc_username", "microsoft_account__mc_uuid")
-    queryset = get_user_model().objects.select_related("microsoft_account").order_by("id")
+    # 新绑定在 allauth SocialAccount（uid / extra_data），旧绑定在 MicrosoftAccount。
+    search_fields = (
+        "username",
+        "email",
+        "socialaccount__uid",
+        "socialaccount__extra_data__mc_username",
+        "microsoft_account__mc_username",
+        "microsoft_account__mc_uuid",
+    )
+    queryset = (
+        get_user_model()
+        .objects.select_related("microsoft_account")
+        .prefetch_related("socialaccount_set")
+        .order_by("id")
+    )
 
 
 @extend_schema_view(
@@ -128,7 +213,7 @@ class PlayerListView(generics.ListAPIView):
 class PlayerDetailView(EnvelopeMixin, generics.RetrieveAPIView):
     permission_classes = [IsActiveStaff]
     serializer_class = PlayerSerializer
-    queryset = get_user_model().objects.select_related("microsoft_account")
+    queryset = get_user_model().objects.select_related("microsoft_account").prefetch_related("socialaccount_set")
 
     @transaction.atomic
     def patch(self, request, *args, **kwargs):

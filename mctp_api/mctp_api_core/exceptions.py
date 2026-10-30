@@ -3,6 +3,8 @@
 统一所有 API 错误响应格式
 """
 
+import logging
+
 from rest_framework import status
 from rest_framework.exceptions import (
     AuthenticationFailed,
@@ -13,6 +15,8 @@ from rest_framework.exceptions import (
 )
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
+
+logger = logging.getLogger(__name__)
 
 
 def custom_exception_handler(exc, context):
@@ -27,7 +31,12 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is None:
-        # 未被 DRF 捕获的异常 (500)
+        # 未被 DRF 捕获的异常 (500)。响应里只给稳定文案，traceback 交给服务端日志。
+        logger.exception(
+            "Unhandled API exception in %s",
+            context.get("view").__class__.__name__ if context.get("view") else "unknown view",
+            exc_info=exc,
+        )
         return Response(
             {"code": 500, "message": "internal server error", "data": None},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,

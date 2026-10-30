@@ -1,7 +1,12 @@
 from drf_spectacular.utils import extend_schema_serializer, inline_serializer
 from rest_framework import serializers
 
-from .serializers import AnnouncementSerializer, PlayerSerializer, PublicAnnouncementSerializer
+from .serializers import (
+    AnnouncementSerializer,
+    CommunityOverviewSerializer,
+    PlayerSerializer,
+    PublicAnnouncementSerializer,
+)
 
 
 def envelope(name, data):
@@ -31,9 +36,11 @@ def paginated(name, item):
 
 
 PUBLIC_LIST = paginated("PublicAnnouncement", PublicAnnouncementSerializer)
+PUBLIC_DETAIL = envelope("PublicAnnouncementResponse", PublicAnnouncementSerializer())
 ANNOUNCEMENT_LIST = paginated("Announcement", AnnouncementSerializer)
 ANNOUNCEMENT_DETAIL = envelope("AnnouncementResponse", AnnouncementSerializer())
 PLAYER_LIST = paginated("Player", PlayerSerializer)
 PLAYER_DETAIL = envelope("PlayerResponse", PlayerSerializer())
+OVERVIEW_RESPONSE = envelope("CommunityOverviewResponse", CommunityOverviewSerializer())
 DELETE_RESPONSE = envelope("AnnouncementDeleteResponse", serializers.JSONField(allow_null=True))
 ERROR_RESPONSE = envelope("CommunityErrorResponse", serializers.JSONField(allow_null=True))

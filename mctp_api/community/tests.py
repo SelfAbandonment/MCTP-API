@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -300,3 +301,156 @@ class CommunityTests(APITestCase):
             page = components[f"{name}Page"]["properties"]
             self.assertEqual(set(page), {"results", "count", "next", "previous"})
             self.assertEqual(page["results"]["type"], "array")
+
+
+class PublicAnnouncementDetailTests(APITestCase):
+    """公开详情、公开搜索与社区概览（v1 增量接口）。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user("staff", is_staff=True)
+        cls.player = User.objects.create_user("player", email="player@example.com")
+        cls.inactive = User.objects.create_user("inactive", is_active=False)
+        cls.legacy_bound = User.objects.create_user("legacy-bound")
+        cls.social_bound = User.objects.create_user("social-bound")
+        MicrosoftAccount.objects.create(user=cls.legacy_bound, mc_uuid="1" * 32, mc_username="LegacyBound")
+        SocialAccount.objects.create(
+            user=cls.social_bound,
+            provider="microsoft",
+            uid="2" * 32,
+            extra_data={"mc_uuid": "2" * 32, "mc_username": "SocialBound"},
+        )
+        cls.published = Announcement.objects.create(
+            title="开服公告",
+            summary="本周更新说明",
+            body="服务器将在周六维护。",
+            is_published=True,
+            published_at=timezone.now() - timedelta(hours=2),
+        )
+        cls.draft = Announcement.objects.create(title="草稿公告", body="未发布")
+        cls.future = Announcement.objects.create(
+            title="预告公告",
+            body="明天见",
+            is_published=True,
+            published_at=timezone.now() + timedelta(days=1),
+        )
+
+    def assert_envelope(self, response, code):
+        self.assertEqual(response.status_code, code, response.data)
+        self.assertEqual(set(response.data), {"code", "message", "data"})
+        self.assertEqual(response.data["code"], code)
+
+    def test_detail_returns_published_announcement_without_auth(self):
+        response = self.client.get(f"/api/v1/announcements/{self.published.pk}/")
+        self.assert_envelope(response, 200)
+        self.assertEqual(
+            set(response.data["data"]),
+            {"id", "title", "summary", "body", "published_at", "updated_at"},
+        )
+        self.assertEqual(response.data["data"]["id"], self.published.pk)
+        self.assertEqual(response.data["data"]["body"], self.published.body)
+
+    def test_detail_hides_drafts_scheduled_and_missing_announcements(self):
+        for pk in [self.draft.pk, self.future.pk, self.published.pk + 999_999]:
+            with self.subTest(pk=pk):
+                self.assert_envelope(self.client.get(f"/api/v1/announcements/{pk}/"), 404)
+
+    def test_detail_ignores_stale_bearer_tokens(self):
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
+        self.assert_envelope(self.client.get(f"/api/v1/announcements/{self.published.pk}/"), 200)
+
+    def test_public_search_covers_title_summary_and_body(self):
+        for term, expected_title in [
+            ("开服", "开服公告"),
+            ("本周更新", "开服公告"),
+            ("维护", "开服公告"),
+            ("草稿", None),
+            ("公告", "开服公告"),
+        ]:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/announcements/", {"search": term})
+                self.assert_envelope(response, 200)
+                results = response.data["data"]["results"]
+                titles = [item["title"] for item in results]
+                if expected_title is None:
+                    self.assertEqual(titles, [])
+                else:
+                    self.assertIn(expected_title, titles)
+        absent = self.client.get("/api/v1/announcements/", {"search": "不存在的关键词"})
+        self.assertEqual(absent.data["data"]["count"], 0)
+
+    def test_overview_requires_authentication(self):
+        self.assert_envelope(self.client.get("/api/v1/overview/"), 401)
+
+    def test_overview_counts_players_and_published_announcements(self):
+        self.client.force_authenticate(self.player)
+        response = self.client.get("/api/v1/overview/")
+        self.assert_envelope(response, 200)
+        data = response.data["data"]
+        self.assertEqual(set(data), {"announcements", "players", "generated_at"})
+        self.assertEqual(data["announcements"]["published"], 1)
+        self.assertEqual(
+            data["announcements"]["latest_published_at"],
+            self.published.published_at.isoformat().replace("+00:00", "Z"),
+        )
+        self.assertEqual(data["players"], {"total": 5, "active": 4, "minecraft_bound": 2})
+        self.assertTrue(data["generated_at"])
+
+    def test_overview_latest_published_at_is_null_without_public_announcements(self):
+        Announcement.objects.update(is_published=False)
+        self.client.force_authenticate(self.player)
+        data = self.client.get("/api/v1/overview/").data["data"]
+        self.assertEqual(data["announcements"], {"published": 0, "latest_published_at": None})
+
+
+class PlayerBindingTests(APITestCase):
+    """玩家管理必须同时识别 allauth（新）与 MicrosoftAccount（旧）绑定。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user("staff", is_staff=True)
+        cls.social_player = User.objects.create_user("social-player", email="social@example.com")
+        cls.legacy_player = User.objects.create_user("legacy-player", email="legacy@example.com")
+        cls.plain_player = User.objects.create_user("plain-player")
+        cls.social_uid = "2" * 32
+        SocialAccount.objects.create(
+            user=cls.social_player,
+            provider="microsoft",
+            uid=cls.social_uid,
+            extra_data={"mc_uuid": cls.social_uid, "mc_username": "SocialMiner"},
+        )
+        MicrosoftAccount.objects.create(user=cls.legacy_player, mc_uuid="1" * 32, mc_username="LegacyMiner")
+
+    def setUp(self):
+        self.client.force_authenticate(self.staff)
+
+    def test_management_list_and_detail_expose_allauth_binding(self):
+        response = self.client.get("/api/v1/manage/players/", {"search": "social-player"})
+        self.assertEqual(response.data["data"]["count"], 1)
+        listed = response.data["data"]["results"][0]
+        self.assertEqual(listed["minecraft"], {"uuid": self.social_uid, "username": "SocialMiner"})
+
+        detail = self.client.get(f"/api/v1/manage/players/{self.social_player.pk}/")
+        self.assertEqual(detail.data["data"]["minecraft"], listed["minecraft"])
+
+    def test_management_search_matches_both_binding_flows(self):
+        for term, expected_id in [
+            ("SocialMiner", self.social_player.pk),
+            (self.social_uid, self.social_player.pk),
+            ("LegacyMiner", self.legacy_player.pk),
+            ("1" * 32, self.legacy_player.pk),
+        ]:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/manage/players/", {"search": term})
+                self.assertEqual(response.data["data"]["count"], 1)
+                self.assertEqual(response.data["data"]["results"][0]["id"], expected_id)
+
+    def test_unbound_player_has_null_minecraft(self):
+        response = self.client.get(f"/api/v1/manage/players/{self.plain_player.pk}/")
+        self.assertIsNone(response.data["data"]["minecraft"])
+
+    def test_list_does_not_query_per_row(self):
+        # count + page rows + one prefetch for allauth bindings.
+        with self.assertNumQueries(3):
+            response = self.client.get("/api/v1/manage/players/")
+            self.assertEqual(response.data["data"]["count"], 4)
