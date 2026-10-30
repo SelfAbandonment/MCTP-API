@@ -1,6 +1,11 @@
+from django import forms
+from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory, TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
+
+from mctp_api.auth.models import MicrosoftAccount
 
 
 class HealthCheckTests(APITestCase):
@@ -41,3 +46,23 @@ class OpenApiSchemaTests(APITestCase):
         self.assertIn("/api/v1/auth/token/refresh/", response.data["paths"])
         self.assertIn("/api/v1/auth/token/session/", response.data["paths"])
         self.assertIn("/api/v1/auth/microsoft/unbind/", response.data["paths"])
+        self.assertIn("/api/v1/announcements/", response.data["paths"])
+        self.assertIn("/api/v1/announcements/{id}/", response.data["paths"])
+        self.assertIn("/api/v1/overview/", response.data["paths"])
+
+
+class AdminFormTests(TestCase):
+    """渲染 admin 表单，捕捉只在 change form 才暴露的 fieldsets 错误。"""
+
+    def test_legacy_microsoft_binding_change_form_renders(self):
+        model_admin = admin.site._registry[MicrosoftAccount]
+        request = RequestFactory().get("/admin/")
+
+        # Regression: fieldsets referenced mc_name/mc_id without declaring them
+        # readonly, so opening any legacy row raised FieldError.
+        form_class = model_admin.get_form(request)
+
+        self.assertTrue(issubclass(form_class, forms.ModelForm))
+        fields = model_admin.get_fields(request)
+        self.assertIn("mc_name", fields)
+        self.assertIn("mc_id", fields)
