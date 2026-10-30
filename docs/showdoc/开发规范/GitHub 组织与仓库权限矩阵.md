@@ -1,4 +1,4 @@
-# GitHub 单仓库权限说明
+﻿# GitHub 单仓库权限说明
 
 适用仓库：`SelfAbandonment/MCTP-API`、`SelfAbandonment/MCTP-Frontend`
 
@@ -23,7 +23,7 @@
 
 - 禁止直接推送、force push、删除分支
 - 必须通过 Pull Request 合并
-- 必需状态检查：`MCTP-API CI / lint`、`MCTP-API CI / test`
+- 必需状态检查：`lint`、`test`
 - 人工审核：**0 人**（单人维护，作者无法自审）
 - `Require code owner review`：关闭，等有稳定第二审核人再开
 
@@ -31,7 +31,7 @@
 
 - 禁止直接推送、force push、删除分支
 - 必须通过 Pull Request 合并
-- 必需状态检查：`lint`、`test`；前端为 `CI / lint`、`CI / test`、`CI / build`
+- 必需状态检查：`lint`、`test`；前端为 `lint`、`test`、`build`
 - 人工审核：0 人
 - 保持线性历史（Squash）
 
