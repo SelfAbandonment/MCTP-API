@@ -5,10 +5,19 @@ on:
     branches: ["main", "develop"]
   pull_request:
     branches: ["main", "develop"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup uv
@@ -25,7 +34,12 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: lint
+    env:
+      # 仅 CI 使用的假值，不要用于任何真实环境
+      SECRET_KEY: "ci-test-secret-key-not-for-production"
+      DEBUG: "False"
     steps:
       - uses: actions/checkout@v4
       - name: Setup uv
@@ -37,17 +51,12 @@ jobs:
         run: uv sync --dev
       - name: Django check
         run: uv run python manage.py check
-        env:
-          SECRET_KEY: "ci-test-secret-key-not-for-production"
-          DEBUG: "False"
       - name: Run tests
         run: uv run python manage.py test --verbosity=2
-        env:
-          SECRET_KEY: "ci-test-secret-key-not-for-production"
-          DEBUG: "False"
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [lint, test]
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
@@ -63,6 +72,7 @@ jobs:
 
   production:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [lint, test]
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||

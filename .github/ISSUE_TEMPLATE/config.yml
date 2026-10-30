@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞（请勿公开）
+    url: https://github.com/SelfAbandonment/MCTP-API/security/policy
+    about: 按 SECURITY.md 的渠道私密报告，不要开公开 issue

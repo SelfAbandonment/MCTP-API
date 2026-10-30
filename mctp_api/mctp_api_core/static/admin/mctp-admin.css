@@ -1,0 +1,8 @@
+/* MCTP admin polish: Chinese-first typography and softer cards. */
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+}
+
+#content {
+  scrollbar-gutter: stable;
+}

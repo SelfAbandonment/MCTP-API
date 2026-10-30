@@ -75,25 +75,26 @@ git clone https://github.com/SelfAbandonment/MCTP-API.git
 cd MCTP-API
 git checkout develop
 
-# 2. 创建虚拟环境
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # macOS/Linux
-
-# 3. 同步依赖（包括开发工具）
+# 2. 同步依赖（uv 会创建或更新 .venv）
 uv sync --dev
 
-# 4. 配置环境变量
+# 3. 配置环境变量
 cp .env.example .env
 # 编辑 .env 填入 SECRET_KEY
 
-# 5. 安装 pre-commit hooks
-pre-commit install
-pre-commit install --hook-type commit-msg
+# 4. 安装 pre-commit hooks
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 
-# 6. 数据库迁移
-python manage.py migrate
+# 5. 数据库迁移
+uv run python manage.py migrate
 ```
+
+不要执行 `pre-commit install pre-commit`；如需显式指定主提交钩子，必须使用
+`uv run pre-commit install --hook-type pre-commit`。
+
+Windows PowerShell 不需要手动执行 uv 的 Python 缓存目录。若需要激活项目环境，使用
+`.\.venv\Scripts\Activate.ps1`；日常命令优先使用 `uv run`。
 
 </details>
 
@@ -109,10 +110,10 @@ make check         # Django 系统检查
 或者手动执行：
 
 ```bash
-ruff check .
-ruff format --check .
-python manage.py test
-python manage.py check
+uv run ruff check .
+uv run ruff format --check .
+uv run python manage.py test
+uv run python manage.py check
 ```
 
 pre-commit hooks 会在提交时**自动执行**以上检查，不通过则无法提交。

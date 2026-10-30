@@ -2,35 +2,63 @@ name: Auto Label PR
 
 on:
   pull_request:
-    types: [opened, edited]
+    types: [opened, reopened, edited]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   label:
+    # fork 来的 PR 没有写权限，跳过以免整条工作流变红
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    timeout-minutes: 5
     steps:
       - name: Auto label by branch name
         uses: actions/github-script@v7
         with:
           script: |
             const branch = context.payload.pull_request.head.ref;
-            const labels = [];
+            const mapping = {
+              'feat/': ['enhancement'],
+              'fix/': ['bug'],
+              'docs/': ['documentation'],
+              'hotfix/': ['bug', 'urgent'],
+              'refactor/': ['refactor'],
+              'test/': ['test'],
+              'chore/': ['chore'],
+              'release/': ['release'],
+            };
+            // 本工作流管理过的标签，分支改名或换前缀时会被回收
+            const managed = ['enhancement', 'bug', 'documentation', 'urgent', 'refactor', 'test', 'chore', 'release'];
 
-            if (branch.startsWith('feat/')) labels.push('enhancement');
-            else if (branch.startsWith('fix/')) labels.push('bug');
-            else if (branch.startsWith('docs/')) labels.push('documentation');
-            else if (branch.startsWith('hotfix/')) labels.push('bug', 'urgent');
-            else if (branch.startsWith('refactor/')) labels.push('refactor');
-            else if (branch.startsWith('test/')) labels.push('test');
-            else if (branch.startsWith('chore/')) labels.push('chore');
-            else if (branch.startsWith('release/')) labels.push('release');
+            const wanted = [];
+            for (const [prefix, labels] of Object.entries(mapping)) {
+              if (branch.startsWith(prefix)) wanted.push(...labels);
+            }
 
-            if (labels.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                labels: labels
-              });
+            const issue_number = context.payload.pull_request.number;
+            const current = (context.payload.pull_request.labels || []).map(label => label.name);
+            const stale = current.filter(name => managed.includes(name) && !wanted.includes(name));
+
+            for (const name of stale) {
+              try {
+                await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number, name });
+              } catch (error) {
+                core.warning(`移除标签 ${name} 失败：${error.message}`);
+              }
+            }
+
+            if (wanted.length === 0) {
+              core.info(`分支 ${branch} 没有匹配的前缀，跳过打标`);
+              return;
+            }
+
+            try {
+              await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number, labels: wanted });
+            } catch (error) {
+              // 标签不存在时 GitHub 返回 422，不要让整条工作流失败
+              core.warning(`添加标签 ${wanted.join(', ')} 失败（标签可能尚未创建）：${error.message}`);
             }

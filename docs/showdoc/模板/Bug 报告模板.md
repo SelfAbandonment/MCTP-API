@@ -26,4 +26,4 @@
 >
 > **期望行为：** 返回 200 和用户 Token
 >
-> **环境：** Windows 11 / Python 3.12 / Django 6.0.3
+> **环境：** Windows 11 / Python 3.12 / Django 6.0
