@@ -11,7 +11,7 @@ All dates are timezone-aware ISO 8601 strings (UTC by default).
 | GET | `announcements/` | Public, published and `published_at <= now` only; `?search=` |
 | GET | `announcements/<id>/` | Public single announcement; 404 for drafts, scheduled and unknown ids |
 | GET | `overview/` | Any authenticated user, counter snapshot |
-| GET, POST | `manage/announcements/` | Active staff, list / create |
+| GET, POST | `manage/announcements/` | Active staff, list (`?search=`) / create |
 | GET, PATCH, DELETE | `manage/announcements/<id>/` | Active staff, retrieve / update / delete |
 | GET | `manage/players/?search=&page=` | Active staff, list / search |
 | GET, PATCH | `manage/players/<id>/` | Active staff, retrieve / toggle active |

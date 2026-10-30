@@ -174,6 +174,24 @@ class CommunityTests(APITestCase):
         self.assertEqual(self.client.get(self.announcement_url(self.draft)).status_code, 200)
         self.assertEqual(self.client.get(self.announcement_url(self.future)).status_code, 200)
 
+    def test_management_search_covers_drafts_and_body(self):
+        self.staff_login()
+        cases = [
+            ("Draft", {self.draft.pk}),
+            ("Scheduled", {self.future.pk}),
+            ("Plain text", {self.published.pk}),
+            ("不存在", set()),
+        ]
+        for term, expected_ids in cases:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/manage/announcements/", {"search": term})
+                self.assert_envelope(response, 200)
+                ids = {item["id"] for item in response.data["data"]["results"]}
+                if expected_ids:
+                    self.assertEqual(ids, expected_ids)
+                else:
+                    self.assertEqual(response.data["data"]["count"], 0)
+
     def test_player_search_and_shape(self):
         self.staff_login()
         expected_fields = {

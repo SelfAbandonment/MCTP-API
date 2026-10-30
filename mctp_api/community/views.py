@@ -156,13 +156,19 @@ class CommunityOverviewView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=["Management"], responses={200: ANNOUNCEMENT_LIST, **ERRORS}),
+    get=extend_schema(
+        tags=["Management"],
+        description="Supports `?search=` over title, summary and body (drafts included).",
+        responses={200: ANNOUNCEMENT_LIST, **ERRORS},
+    ),
     post=extend_schema(tags=["Management"], responses={201: ANNOUNCEMENT_DETAIL, **ERRORS}),
 )
 class AnnouncementListCreateView(EnvelopeMixin, generics.ListCreateAPIView):
     permission_classes = [IsActiveStaff]
     serializer_class = AnnouncementSerializer
     pagination_class = CommunityPagination
+    filter_backends = [SearchFilter]
+    search_fields = ("title", "summary", "body")
     queryset = Announcement.objects.all().order_by("-created_at", "-id")
 
 
