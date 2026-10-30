@@ -11,10 +11,17 @@
 
 ## 分支规则
 
-- `develop`：开发分支，所有功能分支合入这里。
-- `main`：生产分支，只接收 `develop` 的 release PR。
-- 禁止直接向 `main` 推送功能代码。
-- 新任务从 `develop` 拉分支：`feat/<name>`、`fix/<name>`、`chore/<name>`。
+- `main`：生产分支，只接收 `develop` 的 release PR 与 hotfix 回流，每次合并打 tag。
+- `develop`：集成分支，功能分支都合入这里；**禁止直接推送**。
+- 新任务从 `develop` 拉分支：`feat/<name>`、`fix/<name>`、`docs/<name>`、`chore/<name>`。
+- 合并统一 Squash；规则真源见 `docs/showdoc/开发规范/Git 工作流.md`。
+
+## CI 与 Jenkins
+
+- GitHub Actions `.github/workflows/ci.yml`：PR 与 push 到 `main`/`develop` 时跑 lint + test + docker 构建。
+- Jenkins `Jenkinsfile`（仓库根）对应任务 `MCTP-API-CI`，结果回写 commit status。
+- 本地等价命令：`uv run ruff check .`、`uv run python manage.py test --verbosity=2`。
+- 没通过 CI 的分支不要合并；工作流 job 改名会破坏分支保护的必需检查。
 
 ## 隐私与安全
 

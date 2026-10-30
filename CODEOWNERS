@@ -7,7 +7,8 @@
 /manage.py @SelfAbandonment
 /Makefile @SelfAbandonment
 /pyproject.toml @SelfAbandonment
-/requirements.txt @SelfAbandonment
-/requirements-dev.txt @SelfAbandonment
+/uv.lock @SelfAbandonment
+/Dockerfile @SelfAbandonment
 /README.md @SelfAbandonment
 /CONTRIBUTING.md @SelfAbandonment
+/SECURITY.md @SelfAbandonment

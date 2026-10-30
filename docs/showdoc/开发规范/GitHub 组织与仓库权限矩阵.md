@@ -1,58 +1,47 @@
 # GitHub 单仓库权限说明
 
-适用仓库：`SelfAbandonment/MCTP-API`
+适用仓库：`SelfAbandonment/MCTP-API`、`SelfAbandonment/MCTP-Frontend`
 
-本文档用于说明在单仓库模式下的协作边界、分支保护和代码归属，避免继续沿用组织 Team 模式的配置。
+本文说明单仓库模式下的协作边界、分支保护与代码归属。分支规则以 `docs/showdoc/开发规范/Git 工作流.md` 为准。
 
-## 仓库角色建议
+## 仓库角色
 
 - 仓库所有者：`SelfAbandonment`，负责仓库设置、分支保护、Secrets、Actions、CODEOWNERS。
-- 协作者：按需授予 `Write` 或更低权限，只保留真正需要直接推送分支或参与维护的人。
-- 外部协作者：尽量少量、按需、可回收，不使用组织 Team 做权限骨架。
+- 协作者：按需授予 `Write` 或更低权限，只保留真正需要推送分支的人。
+- 外部协作者：尽量少量、按需、可回收。
 
-## 当前推荐模型
+## 推荐模型
 
-- 默认以单仓库协作模式为主。
-- `main` 用于稳定发布，仅通过 PR 合并。
-- `develop` 用于日常集成开发，推荐通过 PR 合并。
-- 合并策略使用 `Squash merge`，保持提交历史可读。
+- 单仓库协作，不依赖组织 Team 做权限骨架。
+- `main` 只接收 release PR 与 hotfix 回流。
+- `develop` 必须走 PR，不再允许直接推送。
+- 合并统一 **Squash merge**，PR 标题即最终 commit message。
 
-## 分支保护建议
+## 分支保护
 
 ### `main`
 
-- 禁止直接推送。
-- 禁止 force push。
-- 禁止删除分支。
-- 必须通过 Pull Request 合并。
-- 必须通过 CI。
-- 至少 1 个审核通过。
-- 是否开启 `Require code owner review` 取决于是否存在稳定的第二审核人。
+- 禁止直接推送、force push、删除分支
+- 必须通过 Pull Request 合并
+- 必需状态检查：`MCTP-API CI / lint`、`MCTP-API CI / test`
+- 人工审核：**0 人**（单人维护，作者无法自审）
+- `Require code owner review`：关闭，等有稳定第二审核人再开
 
 ### `develop`
 
-- 推荐通过 Pull Request 合并。
-- 必须通过 CI。
-- 是否开启 `Require code owner review` 取决于当前协作者数量和审核流程。
-- 保持线性历史，减少回滚成本。
+- 禁止直接推送、force push、删除分支
+- 必须通过 Pull Request 合并
+- 必需状态检查：`lint`、`test`；前端为 `CI / lint`、`CI / test`、`CI / build`
+- 人工审核：0 人
+- 保持线性历史（Squash）
 
-## 当前仓库的 CODEOWNERS
+## CODEOWNERS
 
-单仓库模式下，建议使用如下结构：
+两仓均使用 `CODEOWNERS`（前端在 `.github/CODEOWNERS`，后端在仓库根），全部指向 `@SelfAbandonment`，覆盖源码、CI、依赖与文档目录。
 
-```text
-* @SelfAbandonment
-/.github/ @SelfAbandonment
-/docs/ @SelfAbandonment
-/scripts/ @SelfAbandonment
-/mctp_api/ @SelfAbandonment
-/manage.py @SelfAbandonment
-```
+## 落地检查表
 
-## 落地顺序
-
-1. 将本地 `origin` 指回 `SelfAbandonment/MCTP-API`
-2. 将文档中的克隆地址统一回个人仓库
-3. 将 `CODEOWNERS` 调整为单仓库责任人模式
-4. 仅在确认有稳定审核人时再强制开启 `Require code owner review`
-5. 定期检查协作者权限，避免长期遗留高权限账号
+1. 两个仓库的 `main`、`develop` 都开启分支保护，规则同上
+2. 必需检查的名称与实际 workflow job 名一致（改名会静默失效）
+3. Actions 变量：前端 `VITE_API_BASE_URL` 必须是 HTTPS
+4. 定期清理协作者与旧 token
