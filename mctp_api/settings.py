@@ -236,6 +236,12 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# Production runs behind nginx (and a Cloudflare Tunnel), so the request reaches
+# gunicorn over HTTP while the browser is on HTTPS. Trust the proxy header so
+# request.is_secure() is accurate: otherwise Django builds http:// absolute URLs
+# (Microsoft OAuth redirect_uri) and CSRF's HTTPS Referer check rejects POSTs.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 # ==================== OpenAPI configuration (drf-spectacular) ====================
 
