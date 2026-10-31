@@ -70,7 +70,7 @@ class SendNotificationTest(unittest.TestCase):
         self.assertTrue(request.full_url.endswith("/astrbot_plugin_mctp_ci/webhook"))
         self.assertEqual(request.get_header("Authorization"), "Bearer abk_test")
         self.assertEqual(request.get_header("X-ci-token"), "hook-token")
-        self.assertEqual(captured["timeout"], 5)
+        self.assertEqual(captured["timeout"], 15)
 
 
 if __name__ == "__main__":

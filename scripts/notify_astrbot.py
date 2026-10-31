@@ -79,7 +79,7 @@ def send_notification(
         },
     )
     opener = opener or urllib.request.urlopen
-    with opener(request, timeout=5) as response:
+    with opener(request, timeout=15) as response:
         body = response.read(300).decode("utf-8", "replace")
         status = getattr(response, "status", 200)
     return {"skipped": False, "status": status, "body": body}
