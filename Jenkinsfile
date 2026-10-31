@@ -11,7 +11,6 @@ pipeline {
     }
 
     parameters {
-        booleanParam(name: 'SKIP_DOCKER', defaultValue: false, description: '跳过 docker build 验证')
         booleanParam(name: 'ALLOW_BREAKING', defaultValue: false, description: '允许破坏性契约变更（需前端确认）')
     }
 
@@ -33,6 +32,29 @@ pipeline {
                 }
                 retry(2) {
                     checkout scm
+                }
+            }
+        }
+
+        stage('变更检测') {
+            steps {
+                script {
+                    if (env.CHANGE_ID) {
+                        def target = env.CHANGE_TARGET ?: 'develop'
+                        sh "git fetch --no-tags origin +refs/heads/${target}:refs/remotes/origin/${target}"
+                        def files = sh(
+                            script: "git diff --name-only origin/${target}...HEAD",
+                            returnStdout: true
+                        ).trim()
+                        def list = files ? files.split('\n') : []
+                        def relevant = list.any {
+                            it ==~ /^(mctp_api\/.*|pyproject\.toml|uv\.lock|scripts\/contract_report\.py)$/
+                        }
+                        env.RUN_CONTRACT = relevant ? 'true' : 'false'
+                        echo "契约相关变更：${relevant}（共 ${list.size()} 个文件）"
+                    } else {
+                        env.RUN_CONTRACT = 'false'
+                    }
                 }
             }
         }
@@ -78,15 +100,7 @@ pipeline {
 
         stage('契约兼容检查') {
             when {
-                allOf {
-                    changeRequest()
-                    anyOf {
-                        changeset 'mctp_api/**'
-                        changeset 'pyproject.toml'
-                        changeset 'uv.lock'
-                        changeset 'scripts/contract_report.py'
-                    }
-                }
+                expression { env.RUN_CONTRACT == 'true' }
             }
             steps {
                 sh '''
@@ -135,68 +149,24 @@ pipeline {
                 '''
             }
         }
-
-        stage('单元测试与覆盖率') {
-            steps {
-                sh '''
-                    set -e
-                    export PATH="$HOME/.local/bin:$PATH"
-                    rm -f TEST-*.xml coverage.xml
-                    rm -rf htmlcov
-                    uv run python manage.py check
-                    uv run coverage run --source=mctp_api manage.py test \
-                        --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
-                        --verbosity=2
-                    uv run coverage report --fail-under=85 --show-missing
-                    uv run coverage xml -o coverage.xml
-                    uv run coverage html -d htmlcov
-                '''
-            }
-        }
-
-        stage('Docker 构建') {
-            when {
-                expression { !params.SKIP_DOCKER }
-            }
-            steps {
-                sh '''
-                    set -e
-                    IMAGE="mctp-api:jenkins-${BUILD_NUMBER}"
-                    docker build -t "$IMAGE" .
-                    docker image rm "$IMAGE" || true
-                '''
-            }
-        }
     }
 
     post {
         always {
-            junit allowEmptyResults: true, testResults: 'TEST-*.xml'
-            archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
             archiveArtifacts artifacts: 'contract-*.md,contract-status.txt', allowEmptyArchive: true
-            publishHTML(target: [
-                allowMissing: true,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'htmlcov',
-                reportFiles: 'index.html',
-                reportName: 'Coverage'
-            ])
             script {
-                // PR 上回写测试/覆盖率与契约变更评论（需在删除 XML 之前读取）
+                // 测试/覆盖率/CI 汇总评论由 GitHub Actions 负责；Jenkins 只回写契约评论
                 if (env.CHANGE_ID) {
                     withCredentials([usernamePassword(credentialsId: 'github-MCTP', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                         withEnv([
                             "PR_NUMBER=${env.CHANGE_ID}",
                             "GH_REPO=SelfAbandonment/MCTP-API"
                         ]) {
-                            sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/ci_report.py || echo "PR 评论失败（不影响构建结果）"'
                             sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/contract_report.py || echo "契约评论失败（不影响构建结果）"'
                         }
                     }
                 }
             }
-            sh 'rm -f TEST-*.xml'
             script {
                 // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
                 // 用 env.CHANGE_ID 判断：changeRequest() 在分支构建里也可能返回真值
@@ -215,7 +185,7 @@ pipeline {
             }
         }
         unsuccessful {
-            echo '构建未成功：请检查「代码检查」「单元测试与覆盖率」「Docker 构建」阶段日志。'
+            echo '构建未成功：请检查「代码检查」「迁移与 Schema 检查」「契约兼容检查」阶段日志；测试/覆盖率由 GitHub Actions 负责。'
         }
     }
 }
