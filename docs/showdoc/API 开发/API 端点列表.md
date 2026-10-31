@@ -14,9 +14,11 @@
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| `GET` | `/api/v1/announcements/` | 已发布且到时的公告列表，支持 `?page=`、`?search=` | 不需要 |
+| `GET` | `/api/v1/announcements/` | 已发布且到时的公告列表，支持 `?page=`、`?search=`、`?category=` | 不需要 |
 | `GET` | `/api/v1/announcements/<id>/` | 单条已发布公告详情；草稿、定时和不存在均返回 404 | 不需要 |
 
+公告按 `notice` / `event` / `update` / `maintenance` 分类，置顶公告在可见范围内排在最前；
+管理端列表额外支持 `?status=draft|scheduled|published`。分类与状态取值非法时返回 400。
 公告管理（`/api/v1/manage/announcements/`）与玩家管理（`/api/v1/manage/players/`）
 需要 active staff 权限，字段与语义见 [community-management](../../community-management.md)。
 

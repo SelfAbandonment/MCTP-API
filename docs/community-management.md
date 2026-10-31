@@ -8,10 +8,10 @@ All dates are timezone-aware ISO 8601 strings (UTC by default).
 
 | Method | Path (under `/api/v1/`) | Access / result |
 | --- | --- | --- |
-| GET | `announcements/` | Public, published and `published_at <= now` only; `?search=` |
+| GET | `announcements/` | Public, published and `published_at <= now` only; `?search=`, `?category=` |
 | GET | `announcements/<id>/` | Public single announcement; 404 for drafts, scheduled and unknown ids |
 | GET | `overview/` | Any authenticated user, counter snapshot |
-| GET, POST | `manage/announcements/` | Active staff, list (`?search=`) / create |
+| GET, POST | `manage/announcements/` | Active staff, list (`?search=&category=&status=`) / create |
 | GET, PATCH, DELETE | `manage/announcements/<id>/` | Active staff, retrieve / update / delete |
 | GET | `manage/players/?search=&page=` | Active staff, list / search |
 | GET, PATCH | `manage/players/<id>/` | Active staff, retrieve / toggle active |
@@ -19,8 +19,9 @@ All dates are timezone-aware ISO 8601 strings (UTC by default).
 Lists return `data: {results: [...], count, next, previous}` with 20 records per
 page. `next` / `previous` are absolute URL strings or null. The query parameter
 is `page`, starting at 1; nonexistent pages return 404. Public announcements are
-ordered by publication date then ID descending; management announcements by
-creation date then ID descending; players by ID ascending.
+ordered by `is_pinned` first, then publication date and ID descending; management
+announcements by `is_pinned` first, then creation date and ID descending; players
+by ID ascending.
 
 The public list and the public detail endpoint share one visibility rule: a
 record is public when `is_published` is true and `published_at <= now`. Drafts,
@@ -33,10 +34,26 @@ header, so a stale token never turns a public read into a 401.
 `summary` and `body`. It only ever searches the public subset, so drafts and
 scheduled records never leak through a keyword hit.
 
-Public announcement objects contain `id, title, summary, body, published_at,
-updated_at`. Management objects additionally contain `is_published, created_at`.
-Creation requires nonblank `title` (max 160) and `body`. `summary` is optional
-(blank default, max 240); `is_published` defaults false; `published_at` is nullable.
+`?category=` accepts one of `notice`, `event`, `update`, `maintenance`; an empty
+value means "all categories" and any other value returns 400 with
+`data: {"category": [...]}`. Filtering composes with `?search=`. Pinning only
+changes ordering among records the caller may already see: a pinned draft or
+pinned scheduled announcement stays invisible on the public endpoints.
+
+The management list adds `?status=` on top of `?search=` and `?category=`:
+`draft` is `is_published=false`, `scheduled` is published with
+`published_at > now`, and `published` is published with `published_at <= now`
+(the same rule as the public list, so a published record without a timestamp
+counts as neither). Unknown statuses return 400 with `data: {"status": [...]}`.
+Search always runs over the filtered subset.
+
+Public announcement objects contain `id, title, summary, body, category,
+is_pinned, published_at, updated_at`. Management objects additionally contain
+`is_published, created_at`. Creation requires nonblank `title` (max 160) and
+`body`. `summary` is optional (blank default, max 240); `category` defaults to
+`notice` and must be one of the four codes (an unknown or null value returns
+400); `is_pinned` defaults to false; `is_published` defaults false;
+`published_at` is nullable.
 If a published announcement has no publication timestamp, create/update assigns
 the current time. Explicit future timestamps schedule visibility. Unpublishing
 does not erase an existing timestamp unless null is explicitly supplied.
