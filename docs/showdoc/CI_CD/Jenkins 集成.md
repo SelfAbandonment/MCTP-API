@@ -5,6 +5,7 @@
 | 任务 | 类型 | 脚本 | 触发 |
 |---|---|---|---|
 | `MCTP-API-CI` | Multibranch Pipeline | `Jenkinsfile` | push `develop`/`main`、PR |
+| `MCTP-Deploy` | Pipeline | 内联脚本（Jenkins 任务配置） | `MCTP-API-CI` 或 `MCTP-FE` 的 `main` 构建成功后自动触发 |
 
 ## 建任务
 
@@ -38,11 +39,21 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 
 ## 阶段
 
-1. 准备 uv
+1. 准备 uv：确认/安装 `uv`，打印 `uv` 与 `python` 版本
 2. 代码检查：`uv sync --dev`、`ruff check`、`ruff format --check`
 3. 单元测试：`manage.py check`、`manage.py test --verbosity=2`（`SECRET_KEY`/`DEBUG` 用 CI 假值）
 4. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
 
+PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。
+
+## 生产部署
+
+- 生产由 `MCTP-Deploy` 负责（前端 dist + 后端镜像），GitHub Pages 只作 `main` 前端预览
+- `MCTP-API-CI` 的 `main` 构建成功后自动触发 `MCTP-Deploy`（`BRANCH=main`）
+- `MCTP-Deploy` 带 `precheck`，非 `main` 直接失败；并发构建排队而不是中止，避免部署中途被打断
+- Coolify 不再是生产部署路径；如仍在监听 `main`，需在 Coolify 侧关闭自动部署
+
 ## 与 GitHub Actions 的分工
 
-GitHub Actions 仍是主门禁；Jenkins 做同口径复核。两边都通过才合并。若 Jenkins agent 不稳定，可先把 `jenkins/mctp-api` 设为非必需检查。
+GitHub Actions 仍是主门禁（分支保护必需检查）；Jenkins 做同口径复核，并在 `main` 成功后承担生产部署。
+若 Jenkins agent 不稳定，可先把 `jenkins/mctp-api` 设为非必需检查。
