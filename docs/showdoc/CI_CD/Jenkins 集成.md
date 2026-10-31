@@ -39,12 +39,13 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 
 ## 阶段
 
-1. 准备 uv：确认/安装 `uv`，打印 `uv` 与 `python` 版本
-2. 代码检查：`uv sync --dev`、`ruff check`、`ruff format --check`
-3. 单元测试：`manage.py check`、`manage.py test --verbosity=2`（`SECRET_KEY`/`DEBUG` 用 CI 假值）
-4. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
+1. 准备 uv：确认/安装 `uv`，打印 `uv` 版本
+2. 代码检查：`uv sync --dev`、打印 Python 版本、`ruff check`、`ruff format --check`
+3. 迁移与 Schema 检查：`makemigrations --check --dry-run`、`spectacular --validate`（schema 生成失败会直接拦下）
+4. 单元测试：`manage.py check`、`manage.py test`（`SECRET_KEY`/`DEBUG` 用 CI 假值），用 `unittest-xml-reporting` 产出 JUnit XML，Jenkins `junit` 发布器保留测试趋势
+5. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
 
-PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。
+PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。`unittest-xml-reporting` 由 `uv sync --dev` 按 `pyproject.toml` 的 dev 组安装。
 
 ## 生产部署
 

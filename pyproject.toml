@@ -53,4 +53,5 @@ known-first-party = ["mctp_api"]
 dev = [
     "ruff>=0.9,<1.0",
     "pre-commit>=4.6.0",
+    "unittest-xml-reporting>=3.2,<4",
 ]

@@ -47,13 +47,28 @@ pipeline {
             }
         }
 
+        stage('迁移与 Schema 检查') {
+            steps {
+                sh '''
+                    set -e
+                    export PATH="$HOME/.local/bin:$PATH"
+                    uv run python manage.py makemigrations --check --dry-run
+                    uv run python manage.py spectacular --validate --file ./schema.validation.yaml
+                    rm -f ./schema.validation.yaml
+                '''
+            }
+        }
+
         stage('单元测试') {
             steps {
                 sh '''
                     set -e
                     export PATH="$HOME/.local/bin:$PATH"
+                    rm -f TEST-*.xml
                     uv run python manage.py check
-                    uv run python manage.py test --verbosity=2
+                    uv run python manage.py test \
+                        --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
+                        --verbosity=2
                 '''
             }
         }
@@ -75,6 +90,8 @@ pipeline {
 
     post {
         always {
+            junit allowEmptyResults: true, testResults: 'TEST-*.xml'
+            sh 'rm -f TEST-*.xml'
             script {
                 // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
                 // 用 env.CHANGE_ID 判断：changeRequest() 在分支构建里也可能返回真值
