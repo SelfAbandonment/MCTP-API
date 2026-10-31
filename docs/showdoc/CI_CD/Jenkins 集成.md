@@ -63,6 +63,16 @@ PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响�
 - `MCTP-Deploy` 带 `precheck`，非 `main` 直接失败；并发构建排队而不是中止，避免部署中途被打断
 - Coolify 不再是生产部署路径；如仍在监听 `main`，需在 Coolify 侧关闭自动部署
 
+## AstrBot 构建通知
+
+- 需要三个 Jenkins **Secret text** 凭证（Global）：
+  - `astrbot-base-url`：`http://<AstrBot-IP>:6185`
+  - `astrbot-api-key`：AstrBot OpenAPI Key，scope 含 `plugin`
+  - `astrbot-webhook-token`：插件配置里的 `webhook_token`
+- 触发：`failure`、`fixed`（上次失败本次恢复）；凭证缺失或网络失败只写日志，不影响构建
+- 通知内容：仓库、分支/PR、构建号、耗时、链接，渲染为图片卡片；图片发送失败自动回退纯文本
+- 插件源码在 workspace 的 `astrbot-plugins/astrbot_plugin_mctp_ci/`（不在本仓库）
+
 ## 与 GitHub Actions 的分工
 
 GitHub Actions 仍是主门禁（分支保护必需检查）；Jenkins 做同口径复核，并在 `main` 成功后承担生产部署。
