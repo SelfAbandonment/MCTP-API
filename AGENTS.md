@@ -7,7 +7,7 @@
 - Django 6.0 + Django REST Framework 后端。
 - 仓库路径：`/mnt/d/code/MCTP-API`。
 - GitHub：`github.com/SelfAbandonment/MCTP-API`。
-- 生产部署：Coolify 监听 `main` 分支；生产 API 地址由 Coolify 环境配置，不在代码仓库中硬编码。
+- 生产部署：`MCTP-Deploy`（`main` 构建成功后自动触发）；生产 API 地址由部署环境配置，不在代码仓库中硬编码。GitHub Pages 只作前端预览。
 
 ## 分支规则
 
@@ -19,7 +19,7 @@
 ## CI 与 Jenkins
 
 - GitHub Actions `.github/workflows/ci.yml`：PR 与 push 到 `main`/`develop` 时跑 lint + test + docker 构建。
-- Jenkins `Jenkinsfile`（仓库根）对应任务 `MCTP-API-CI`，结果回写 commit status。
+- Jenkins `Jenkinsfile`（仓库根）对应任务 `MCTP-API-CI`，结果回写 commit status；`main` 通过后自动触发 `MCTP-Deploy`。
 - 本地等价命令：`uv run ruff check .`、`uv run python manage.py test --verbosity=2`。
 - 没通过 CI 的分支不要合并；工作流 job 改名会破坏分支保护的必需检查。
 

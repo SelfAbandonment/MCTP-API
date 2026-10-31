@@ -5,7 +5,7 @@ pipeline {
         timestamps()
         timeout(time: 20, unit: 'MINUTES')
         disableConcurrentBuilds(abortPrevious: true)
-        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
+        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '3'))
     }
 
     parameters {
@@ -40,6 +40,7 @@ pipeline {
                     set -e
                     export PATH="$HOME/.local/bin:$PATH"
                     uv sync --dev
+                    uv run python --version
                     uv run ruff check .
                     uv run ruff format --check .
                 '''
@@ -73,6 +74,24 @@ pipeline {
     }
 
     post {
+        always {
+            script {
+                // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
+                // 用 env.CHANGE_ID 判断：changeRequest() 在分支构建里也可能返回真值
+                if (env.CHANGE_ID) {
+                    cleanWs()
+                }
+            }
+        }
+        success {
+            script {
+                // main 通过后自动触发生产部署（MCTP-Deploy 同时构建前后端）
+                if (env.BRANCH_NAME == 'main') {
+                    echo 'main 构建通过，触发生产部署 MCTP-Deploy'
+                    build job: 'MCTP-Deploy', wait: false, parameters: [string(name: 'BRANCH', value: 'main')]
+                }
+            }
+        }
         unsuccessful {
             echo '构建未成功：请检查「代码检查」「单元测试」「Docker 构建」阶段日志。'
         }
