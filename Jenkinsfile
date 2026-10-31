@@ -36,6 +36,29 @@ pipeline {
             }
         }
 
+        stage('变更检测') {
+            steps {
+                script {
+                    if (env.CHANGE_ID) {
+                        def target = env.CHANGE_TARGET ?: 'develop'
+                        sh "git fetch --no-tags origin +refs/heads/${target}:refs/remotes/origin/${target}"
+                        def files = sh(
+                            script: "git diff --name-only origin/${target}...HEAD",
+                            returnStdout: true
+                        ).trim()
+                        def list = files ? files.split('\n') : []
+                        def relevant = list.any {
+                            it ==~ /^(mctp_api\/.*|pyproject\.toml|uv\.lock|scripts\/contract_report\.py)$/
+                        }
+                        env.RUN_CONTRACT = relevant ? 'true' : 'false'
+                        echo "契约相关变更：${relevant}（共 ${list.size()} 个文件）"
+                    } else {
+                        env.RUN_CONTRACT = 'false'
+                    }
+                }
+            }
+        }
+
         stage('准备 uv') {
             steps {
                 sh '''
@@ -77,15 +100,7 @@ pipeline {
 
         stage('契约兼容检查') {
             when {
-                allOf {
-                    changeRequest()
-                    anyOf {
-                        changeset 'mctp_api/**'
-                        changeset 'pyproject.toml'
-                        changeset 'uv.lock'
-                        changeset 'scripts/contract_report.py'
-                    }
-                }
+                expression { env.RUN_CONTRACT == 'true' }
             }
             steps {
                 sh '''
