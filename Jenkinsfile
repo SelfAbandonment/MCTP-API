@@ -1,5 +1,6 @@
 def notifyAstrBot(String status, String title) {
     try {
+        def elapsed = ((System.currentTimeMillis() - currentBuild.startTimeInMillis) / 1000).toInteger()
         withCredentials([
             string(credentialsId: 'astrbot-base-url', variable: 'ASTRBOT_BASE_URL'),
             string(credentialsId: 'astrbot-api-key', variable: 'ASTRBOT_API_KEY'),
@@ -14,9 +15,9 @@ def notifyAstrBot(String status, String title) {
                 "NOTIFY_SUBTITLE=${env.CHANGE_ID ? 'PR #' + env.CHANGE_ID : ''}",
                 "NOTIFY_PR=${env.CHANGE_ID ?: ''}",
                 "NOTIFY_URL=${env.BUILD_URL ?: ''}",
-                "NOTIFY_DURATION=${currentBuild.durationString ?: ''}",
+                "NOTIFY_DURATION=${elapsed}s",
                 "NOTIFY_ACTOR=${env.BUILD_USER_ID ?: ''}",
-                "NOTIFY_DETAILS=Jenkins #${env.BUILD_NUMBER} | ${env.JOB_NAME}"
+                "NOTIFY_DETAILS=构建 #${env.BUILD_NUMBER} | ${env.JOB_NAME.replaceAll('%2F', '/')}"
             ]) {
                 sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/notify_astrbot.py || true'
             }
