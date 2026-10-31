@@ -36,6 +36,7 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `SKIP_DOCKER` | false | 跳过 docker build 验证 |
+| `ALLOW_BREAKING` | false | 允许破坏性 OpenAPI 契约变更（需前端确认后手动放行） |
 
 ## 阶段
 
@@ -43,15 +44,17 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 2. 准备 uv：确认/安装 `uv`，打印 `uv` 版本
 3. 代码检查：`uv sync --dev`、打印 Python 版本、`ruff check`、`ruff format --check`
 4. 迁移与 Schema 检查：`makemigrations --check --dry-run`、`spectacular --validate`（schema 生成失败会直接拦下）
-5. 单元测试与覆盖率：`manage.py check`、`coverage run` 包裹测试（`unittest-xml-reporting` 产出 JUnit XML），再生成 `coverage.xml` / `htmlcov`；Jenkins 有 Coverage HTML 报告与测试趋势
-6. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
+5. 契约兼容检查（仅 PR）：用 `git worktree` 从目标分支生成 base schema，与当前 revision 用 `tufin/oasdiff` 比较；破坏性变更失败，`ALLOW_BREAKING=true` 可放行
+6. 单元测试与覆盖率：`manage.py check`、`coverage run` 包裹测试（`unittest-xml-reporting` 产出 JUnit XML），再生成 `coverage.xml` / `htmlcov`；Jenkins 有 Coverage HTML 报告与测试趋势
+7. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
 
 PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。`unittest-xml-reporting` 由 `uv sync --dev` 按 `pyproject.toml` 的 dev 组安装。
 
 ## PR 评论
 
-- PR 构建结束后回写一条 CI 汇总评论：测试通过/失败/跳过数、覆盖率、Jenkins 构建链接
-- 由 `scripts/ci_report.py`（仅标准库）读取 JUnit XML 与 `coverage.xml`，用 Jenkins 凭证 `github-MCTP` 调 GitHub API；带 HTML 标记，重复构建只更新同一条评论
+- PR 构建结束后回写两条评论（各自带 HTML 标记，重复构建只更新同一条）：
+  - **CI 汇总**：测试通过/失败/跳过数、覆盖率、Jenkins 构建链接（`scripts/ci_report.py`）
+  - **API 契约变更**：是否有破坏性变更、`oasdiff` 变更详情、Jenkins 构建链接（`scripts/contract_report.py`）
 - 评论失败不影响构建结果；协作者在仓库内分支提的 PR 同样会收到（fork PR 目前不在发现范围内）
 - 凭证需要 Issues 写权限
 
