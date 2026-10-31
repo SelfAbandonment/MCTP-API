@@ -1,3 +1,31 @@
+def notifyAstrBot(String status, String title) {
+    try {
+        withCredentials([
+            string(credentialsId: 'astrbot-base-url', variable: 'ASTRBOT_BASE_URL'),
+            string(credentialsId: 'astrbot-api-key', variable: 'ASTRBOT_API_KEY'),
+            string(credentialsId: 'astrbot-webhook-token', variable: 'ASTRBOT_WEBHOOK_TOKEN')
+        ]) {
+            withEnv([
+                "NOTIFY_STATUS=${status}",
+                "NOTIFY_TITLE=${title}",
+                "NOTIFY_REPO=MCTP-API",
+                "NOTIFY_EVENT=ci",
+                "NOTIFY_BRANCH=${env.CHANGE_BRANCH ?: env.BRANCH_NAME ?: ''}",
+                "NOTIFY_SUBTITLE=${env.CHANGE_ID ? 'PR #' + env.CHANGE_ID : ''}",
+                "NOTIFY_PR=${env.CHANGE_ID ?: ''}",
+                "NOTIFY_URL=${env.BUILD_URL ?: ''}",
+                "NOTIFY_DURATION=${currentBuild.durationString ?: ''}",
+                "NOTIFY_ACTOR=${env.BUILD_USER_ID ?: ''}",
+                "NOTIFY_DETAILS=Jenkins #${env.BUILD_NUMBER} | ${env.JOB_NAME}"
+            ]) {
+                sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/notify_astrbot.py || true'
+            }
+        }
+    } catch (Exception exc) {
+        echo "AstrBot 通知跳过（凭证未配置或发送失败）：${exc.message}"
+    }
+}
+
 pipeline {
     agent any
 
@@ -167,12 +195,15 @@ pipeline {
                     }
                 }
             }
+        }
+        failure {
             script {
-                // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
-                // 用 env.CHANGE_ID 判断：changeRequest() 在分支构建里也可能返回真值
-                if (env.CHANGE_ID) {
-                    cleanWs()
-                }
+                notifyAstrBot('failure', "MCTP-API 构建失败：${env.CHANGE_BRANCH ?: env.BRANCH_NAME ?: ''}")
+            }
+        }
+        fixed {
+            script {
+                notifyAstrBot('fixed', "MCTP-API 构建恢复：${env.CHANGE_BRANCH ?: env.BRANCH_NAME ?: ''}")
             }
         }
         success {
@@ -181,6 +212,15 @@ pipeline {
                 if (env.BRANCH_NAME == 'main') {
                     echo 'main 构建通过，触发生产部署 MCTP-Deploy'
                     build job: 'MCTP-Deploy', wait: false, parameters: [string(name: 'BRANCH', value: 'main')]
+                }
+            }
+        }
+        cleanup {
+            script {
+                // 通知需要工作区，清理放到最后
+                // 用 env.CHANGE_ID 判断：changeRequest() 在分支构建里也可能返回真值
+                if (env.CHANGE_ID) {
+                    cleanWs()
                 }
             }
         }
