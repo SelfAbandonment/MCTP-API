@@ -39,6 +39,7 @@ urlpatterns = [
     # API v1
     path("api/v1/", include("mctp_api.mctp_api_core.urls")),
     path("api/v1/", include("mctp_api.community.urls")),
+    path("api/v1/", include("mctp_api.points.urls")),
     # 用户认证
     path("api/v1/auth/", include("mctp_api.auth.urls")),
     # JWT Token
