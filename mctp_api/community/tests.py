@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -59,7 +60,10 @@ class CommunityTests(APITestCase):
         self.assertEqual(response.data["data"]["count"], 1)
         item = response.data["data"]["results"][0]
         self.assertEqual(item["id"], self.published.pk)
-        self.assertEqual(set(item), {"id", "title", "summary", "body", "published_at", "updated_at"})
+        self.assertEqual(
+            set(item),
+            {"id", "title", "summary", "body", "category", "is_pinned", "published_at", "updated_at"},
+        )
         self.assertEqual(item["body"], self.published.body)
 
     def test_public_pagination_and_order(self):
@@ -172,6 +176,24 @@ class CommunityTests(APITestCase):
         self.assertEqual(len(page2["results"]), 4)
         self.assertEqual(self.client.get(self.announcement_url(self.draft)).status_code, 200)
         self.assertEqual(self.client.get(self.announcement_url(self.future)).status_code, 200)
+
+    def test_management_search_covers_drafts_and_body(self):
+        self.staff_login()
+        cases = [
+            ("Draft", {self.draft.pk}),
+            ("Scheduled", {self.future.pk}),
+            ("Plain text", {self.published.pk}),
+            ("不存在", set()),
+        ]
+        for term, expected_ids in cases:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/manage/announcements/", {"search": term})
+                self.assert_envelope(response, 200)
+                ids = {item["id"] for item in response.data["data"]["results"]}
+                if expected_ids:
+                    self.assertEqual(ids, expected_ids)
+                else:
+                    self.assertEqual(response.data["data"]["count"], 0)
 
     def test_player_search_and_shape(self):
         self.staff_login()
@@ -300,3 +322,325 @@ class CommunityTests(APITestCase):
             page = components[f"{name}Page"]["properties"]
             self.assertEqual(set(page), {"results", "count", "next", "previous"})
             self.assertEqual(page["results"]["type"], "array")
+
+
+class PublicAnnouncementDetailTests(APITestCase):
+    """公开详情、公开搜索与社区概览（v1 增量接口）。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user("staff", is_staff=True)
+        cls.player = User.objects.create_user("player", email="player@example.com")
+        cls.inactive = User.objects.create_user("inactive", is_active=False)
+        cls.legacy_bound = User.objects.create_user("legacy-bound")
+        cls.social_bound = User.objects.create_user("social-bound")
+        MicrosoftAccount.objects.create(user=cls.legacy_bound, mc_uuid="1" * 32, mc_username="LegacyBound")
+        SocialAccount.objects.create(
+            user=cls.social_bound,
+            provider="microsoft",
+            uid="2" * 32,
+            extra_data={"mc_uuid": "2" * 32, "mc_username": "SocialBound"},
+        )
+        cls.published = Announcement.objects.create(
+            title="开服公告",
+            summary="本周更新说明",
+            body="服务器将在周六维护。",
+            is_published=True,
+            published_at=timezone.now() - timedelta(hours=2),
+        )
+        cls.draft = Announcement.objects.create(title="草稿公告", body="未发布")
+        cls.future = Announcement.objects.create(
+            title="预告公告",
+            body="明天见",
+            is_published=True,
+            published_at=timezone.now() + timedelta(days=1),
+        )
+
+    def assert_envelope(self, response, code):
+        self.assertEqual(response.status_code, code, response.data)
+        self.assertEqual(set(response.data), {"code", "message", "data"})
+        self.assertEqual(response.data["code"], code)
+
+    def test_detail_returns_published_announcement_without_auth(self):
+        response = self.client.get(f"/api/v1/announcements/{self.published.pk}/")
+        self.assert_envelope(response, 200)
+        self.assertEqual(
+            set(response.data["data"]),
+            {"id", "title", "summary", "body", "category", "is_pinned", "published_at", "updated_at"},
+        )
+        self.assertEqual(response.data["data"]["id"], self.published.pk)
+        self.assertEqual(response.data["data"]["body"], self.published.body)
+
+    def test_detail_hides_drafts_scheduled_and_missing_announcements(self):
+        for pk in [self.draft.pk, self.future.pk, self.published.pk + 999_999]:
+            with self.subTest(pk=pk):
+                self.assert_envelope(self.client.get(f"/api/v1/announcements/{pk}/"), 404)
+
+    def test_detail_ignores_stale_bearer_tokens(self):
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
+        self.assert_envelope(self.client.get(f"/api/v1/announcements/{self.published.pk}/"), 200)
+
+    def test_public_search_covers_title_summary_and_body(self):
+        for term, expected_title in [
+            ("开服", "开服公告"),
+            ("本周更新", "开服公告"),
+            ("维护", "开服公告"),
+            ("草稿", None),
+            ("公告", "开服公告"),
+        ]:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/announcements/", {"search": term})
+                self.assert_envelope(response, 200)
+                results = response.data["data"]["results"]
+                titles = [item["title"] for item in results]
+                if expected_title is None:
+                    self.assertEqual(titles, [])
+                else:
+                    self.assertIn(expected_title, titles)
+        absent = self.client.get("/api/v1/announcements/", {"search": "不存在的关键词"})
+        self.assertEqual(absent.data["data"]["count"], 0)
+
+    def test_overview_requires_authentication(self):
+        self.assert_envelope(self.client.get("/api/v1/overview/"), 401)
+
+    def test_overview_counts_players_and_published_announcements(self):
+        self.client.force_authenticate(self.player)
+        response = self.client.get("/api/v1/overview/")
+        self.assert_envelope(response, 200)
+        data = response.data["data"]
+        self.assertEqual(set(data), {"announcements", "players", "generated_at"})
+        self.assertEqual(data["announcements"]["published"], 1)
+        self.assertEqual(
+            data["announcements"]["latest_published_at"],
+            self.published.published_at.isoformat().replace("+00:00", "Z"),
+        )
+        self.assertEqual(data["players"], {"total": 5, "active": 4, "minecraft_bound": 2})
+        self.assertTrue(data["generated_at"])
+
+    def test_overview_latest_published_at_is_null_without_public_announcements(self):
+        Announcement.objects.update(is_published=False)
+        self.client.force_authenticate(self.player)
+        data = self.client.get("/api/v1/overview/").data["data"]
+        self.assertEqual(data["announcements"], {"published": 0, "latest_published_at": None})
+
+
+class PlayerBindingTests(APITestCase):
+    """玩家管理必须同时识别 allauth（新）与 MicrosoftAccount（旧）绑定。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user("staff", is_staff=True)
+        cls.social_player = User.objects.create_user("social-player", email="social@example.com")
+        cls.legacy_player = User.objects.create_user("legacy-player", email="legacy@example.com")
+        cls.plain_player = User.objects.create_user("plain-player")
+        cls.social_uid = "2" * 32
+        SocialAccount.objects.create(
+            user=cls.social_player,
+            provider="microsoft",
+            uid=cls.social_uid,
+            extra_data={"mc_uuid": cls.social_uid, "mc_username": "SocialMiner"},
+        )
+        MicrosoftAccount.objects.create(user=cls.legacy_player, mc_uuid="1" * 32, mc_username="LegacyMiner")
+
+    def setUp(self):
+        self.client.force_authenticate(self.staff)
+
+    def test_management_list_and_detail_expose_allauth_binding(self):
+        response = self.client.get("/api/v1/manage/players/", {"search": "social-player"})
+        self.assertEqual(response.data["data"]["count"], 1)
+        listed = response.data["data"]["results"][0]
+        self.assertEqual(listed["minecraft"], {"uuid": self.social_uid, "username": "SocialMiner"})
+
+        detail = self.client.get(f"/api/v1/manage/players/{self.social_player.pk}/")
+        self.assertEqual(detail.data["data"]["minecraft"], listed["minecraft"])
+
+    def test_management_search_matches_both_binding_flows(self):
+        for term, expected_id in [
+            ("SocialMiner", self.social_player.pk),
+            (self.social_uid, self.social_player.pk),
+            ("LegacyMiner", self.legacy_player.pk),
+            ("1" * 32, self.legacy_player.pk),
+        ]:
+            with self.subTest(term=term):
+                response = self.client.get("/api/v1/manage/players/", {"search": term})
+                self.assertEqual(response.data["data"]["count"], 1)
+                self.assertEqual(response.data["data"]["results"][0]["id"], expected_id)
+
+    def test_unbound_player_has_null_minecraft(self):
+        response = self.client.get(f"/api/v1/manage/players/{self.plain_player.pk}/")
+        self.assertIsNone(response.data["data"]["minecraft"])
+
+    def test_list_does_not_query_per_row(self):
+        # count + page rows + one prefetch for allauth bindings.
+        with self.assertNumQueries(3):
+            response = self.client.get("/api/v1/manage/players/")
+            self.assertEqual(response.data["data"]["count"], 4)
+
+
+class AnnouncementTaxonomyTests(APITestCase):
+    """公告分类、置顶与筛选（公开列表 / 管理端列表）。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.staff = User.objects.create_user("taxonomy-staff", is_staff=True)
+        cls.pinned = Announcement.objects.create(
+            title="置顶公告",
+            body="置顶正文",
+            category=Announcement.Category.NOTICE,
+            is_pinned=True,
+            is_published=True,
+            published_at=now - timedelta(days=3),
+        )
+        cls.event = Announcement.objects.create(
+            title="夏日活动",
+            body="活动正文",
+            category=Announcement.Category.EVENT,
+            is_published=True,
+            published_at=now - timedelta(days=2),
+        )
+        cls.update = Announcement.objects.create(
+            title="版本更新",
+            body="更新正文",
+            category=Announcement.Category.UPDATE,
+            is_published=True,
+            published_at=now - timedelta(hours=1),
+        )
+        cls.draft_pinned = Announcement.objects.create(
+            title="置顶草稿",
+            body="草稿正文",
+            category=Announcement.Category.EVENT,
+            is_pinned=True,
+        )
+        cls.scheduled = Announcement.objects.create(
+            title="维护预告",
+            body="维护正文",
+            category=Announcement.Category.MAINTENANCE,
+            is_published=True,
+            published_at=now + timedelta(days=2),
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(self.staff)
+
+    def assert_envelope(self, response, code):
+        self.assertEqual(response.status_code, code, response.data)
+        self.assertEqual(set(response.data), {"code", "message", "data"})
+        self.assertEqual(response.data["code"], code)
+
+    def ids(self, response):
+        return [item["id"] for item in response.data["data"]["results"]]
+
+    def test_public_list_orders_pinned_first_then_publication_time(self):
+        response = self.client.get("/api/v1/announcements/")
+        self.assert_envelope(response, 200)
+        self.assertEqual(self.ids(response), [self.pinned.pk, self.update.pk, self.event.pk])
+        first = response.data["data"]["results"][0]
+        self.assertEqual(first["category"], "notice")
+        self.assertIs(first["is_pinned"], True)
+        self.assertIs(response.data["data"]["results"][1]["is_pinned"], False)
+
+    def test_pinned_draft_never_reaches_the_public_endpoints(self):
+        listed = self.client.get("/api/v1/announcements/")
+        self.assertNotIn(self.draft_pinned.pk, self.ids(listed))
+        self.assertNotIn(self.scheduled.pk, self.ids(listed))
+        self.assert_envelope(self.client.get(f"/api/v1/announcements/{self.draft_pinned.pk}/"), 404)
+
+    def test_public_category_filter_and_invalid_values(self):
+        response = self.client.get("/api/v1/announcements/", {"category": "event"})
+        self.assertEqual(self.ids(response), [self.event.pk])
+        self.assertEqual(
+            self.client.get("/api/v1/announcements/", {"category": "maintenance"}).data["data"]["count"], 0
+        )
+        self.assertEqual(self.client.get("/api/v1/announcements/", {"category": ""}).data["data"]["count"], 3)
+        invalid = self.client.get("/api/v1/announcements/", {"category": "unknown"})
+        self.assert_envelope(invalid, 400)
+        self.assertEqual(invalid.data["data"], {"category": ["Unknown category: unknown."]})
+
+    def test_management_status_filter(self):
+        cases = {
+            "draft": {self.draft_pinned.pk},
+            "scheduled": {self.scheduled.pk},
+            "published": {self.pinned.pk, self.event.pk, self.update.pk},
+        }
+        for status, expected in cases.items():
+            with self.subTest(status=status):
+                response = self.client.get("/api/v1/manage/announcements/", {"status": status})
+                self.assert_envelope(response, 200)
+                self.assertEqual(set(self.ids(response)), expected)
+        self.assertEqual(self.client.get("/api/v1/manage/announcements/", {"status": ""}).data["data"]["count"], 5)
+
+    def test_management_category_filter_and_combination(self):
+        response = self.client.get("/api/v1/manage/announcements/", {"category": "event"})
+        self.assertEqual(set(self.ids(response)), {self.event.pk, self.draft_pinned.pk})
+        combined = self.client.get("/api/v1/manage/announcements/", {"category": "event", "status": "published"})
+        self.assertEqual(self.ids(combined), [self.event.pk])
+        search = self.client.get("/api/v1/manage/announcements/", {"category": "event", "search": "夏日"})
+        self.assertEqual(self.ids(search), [self.event.pk])
+        invalid = self.client.get("/api/v1/manage/announcements/", {"status": "unknown"})
+        self.assert_envelope(invalid, 400)
+        self.assertEqual(invalid.data["data"], {"status": ["Unknown status: unknown."]})
+
+    def test_management_list_keeps_pinned_items_first(self):
+        response = self.client.get("/api/v1/manage/announcements/")
+        self.assertEqual(self.ids(response)[0], self.draft_pinned.pk)
+
+    def test_create_and_update_category_and_pin(self):
+        response = self.client.post(
+            "/api/v1/manage/announcements/",
+            {"title": "新活动", "body": "正文", "category": "event", "is_pinned": True},
+            format="json",
+        )
+        self.assert_envelope(response, 201)
+        created = Announcement.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(created.category, Announcement.Category.EVENT)
+        self.assertIs(created.is_pinned, True)
+
+        patched = self.client.patch(
+            f"/api/v1/manage/announcements/{created.pk}/",
+            {"category": "maintenance", "is_pinned": False},
+            format="json",
+        )
+        self.assert_envelope(patched, 200)
+        created.refresh_from_db()
+        self.assertEqual(created.category, Announcement.Category.MAINTENANCE)
+        self.assertIs(created.is_pinned, False)
+
+    def test_defaults_and_validation(self):
+        response = self.client.post(
+            "/api/v1/manage/announcements/",
+            {"title": "默认分类", "body": "正文"},
+            format="json",
+        )
+        self.assert_envelope(response, 201)
+        created = Announcement.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(created.category, Announcement.Category.NOTICE)
+        self.assertIs(created.is_pinned, False)
+
+        for payload in [
+            {"title": "X", "body": "Y", "category": "unknown"},
+            {"title": "X", "body": "Y", "category": None},
+            {"title": "X", "body": "Y", "category_label": "公告"},
+            {"title": "X", "body": "Y", "is_pinned": "maybe"},
+        ]:
+            with self.subTest(payload=payload):
+                self.assert_envelope(self.client.post("/api/v1/manage/announcements/", payload, format="json"), 400)
+        self.assert_envelope(
+            self.client.patch(
+                f"/api/v1/manage/announcements/{created.pk}/",
+                {"category": "unknown"},
+                format="json",
+            ),
+            400,
+        )
+        created.refresh_from_db()
+        self.assertEqual(created.category, Announcement.Category.NOTICE)
+
+    def test_schema_documents_new_filters(self):
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        public_params = {item["name"] for item in schema["paths"]["/api/v1/announcements/"]["get"]["parameters"]}
+        management_params = {
+            item["name"] for item in schema["paths"]["/api/v1/manage/announcements/"]["get"]["parameters"]
+        }
+        self.assertIn("category", public_params)
+        self.assertTrue({"category", "status"} <= management_params)

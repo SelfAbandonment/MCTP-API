@@ -160,7 +160,17 @@ class LegacyMicrosoftBindingAdmin(ModelAdmin):
     list_display = ("user", "mc_username", "mc_uuid", "created_at", "last_login_at")
     search_fields = ("user__username", "mc_username", "mc_uuid")
     ordering = ("-created_at",)
-    readonly_fields = ("user", "mc_uuid", "mc_username", "ms_account_id", "created_at", "updated_at", "last_login_at")
+    readonly_fields = (
+        "user",
+        "mc_uuid",
+        "mc_username",
+        "mc_name",
+        "mc_id",
+        "ms_account_id",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+    )
     fieldsets = (
         ("旧版绑定（只读，已停止写入）", {"fields": ("user", "mc_name", "mc_id")}),
         ("时间", {"fields": ("created_at", "updated_at", "last_login_at")}),

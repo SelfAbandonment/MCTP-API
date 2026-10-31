@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     # unregister/re-register the admin classes from the apps above)
     "mctp_api.auth",
     "mctp_api.community",
+    "mctp_api.points",
     "mctp_api.mctp_api_core",
 ]
 
