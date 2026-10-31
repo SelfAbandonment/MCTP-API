@@ -48,6 +48,13 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 
 PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。`unittest-xml-reporting` 由 `uv sync --dev` 按 `pyproject.toml` 的 dev 组安装。
 
+## PR 评论
+
+- PR 构建结束后回写一条 CI 汇总评论：测试通过/失败/跳过数、覆盖率、Jenkins 构建链接
+- 由 `scripts/ci_report.py`（仅标准库）读取 JUnit XML 与 `coverage.xml`，用 Jenkins 凭证 `github-MCTP` 调 GitHub API；带 HTML 标记，重复构建只更新同一条评论
+- 评论失败不影响构建结果；协作者在仓库内分支提的 PR 同样会收到（fork PR 目前不在发现范围内）
+- 凭证需要 Issues 写权限
+
 ## 生产部署
 
 - 生产由 `MCTP-Deploy` 负责（前端 dist + 后端镜像），GitHub Pages 只作 `main` 前端预览

@@ -120,6 +120,19 @@ pipeline {
                 reportFiles: 'index.html',
                 reportName: 'Coverage'
             ])
+            script {
+                // PR 上回写测试/覆盖率汇总评论（需在删除 XML 之前读取）
+                if (env.CHANGE_ID) {
+                    withCredentials([usernamePassword(credentialsId: 'github-MCTP', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        withEnv([
+                            "PR_NUMBER=${env.CHANGE_ID}",
+                            "GH_REPO=SelfAbandonment/MCTP-API"
+                        ]) {
+                            sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/ci_report.py || echo "PR 评论失败（不影响构建结果）"'
+                        }
+                    }
+                }
+            }
             sh 'rm -f TEST-*.xml'
             script {
                 // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
