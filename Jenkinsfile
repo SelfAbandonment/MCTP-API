@@ -5,7 +5,7 @@ pipeline {
         timestamps()
         timeout(time: 20, unit: 'MINUTES')
         disableConcurrentBuilds(abortPrevious: true)
-        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '3'))
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '2'))
         // 显式 checkout，便于先清理 PR 工作区并加一次重试
         skipDefaultCheckout()
     }
@@ -78,7 +78,15 @@ pipeline {
 
         stage('契约兼容检查') {
             when {
-                changeRequest()
+                allOf {
+                    changeRequest()
+                    anyOf {
+                        changeset 'mctp_api/**'
+                        changeset 'pyproject.toml'
+                        changeset 'uv.lock'
+                        changeset 'scripts/contract_report.py'
+                    }
+                }
             }
             steps {
                 sh '''
@@ -103,10 +111,10 @@ pipeline {
                         MOUNT_ARGS="-v $WORKSPACE:$WORKSPACE"
                     fi
 
-                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff \
+                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
                         changelog base.yaml revision.yaml --format markdown > contract-changelog.md || true
                     set +e
-                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff \
+                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
                         breaking base.yaml revision.yaml --format markdown > contract-breaking.md
                     status=$?
                     set -e
@@ -139,7 +147,7 @@ pipeline {
                     uv run coverage run --source=mctp_api manage.py test \
                         --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
                         --verbosity=2
-                    uv run coverage report --show-missing
+                    uv run coverage report --fail-under=85 --show-missing
                     uv run coverage xml -o coverage.xml
                     uv run coverage html -d htmlcov
                 '''
