@@ -6,6 +6,8 @@ pipeline {
         timeout(time: 20, unit: 'MINUTES')
         disableConcurrentBuilds(abortPrevious: true)
         buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '3'))
+        // 显式 checkout，便于先清理 PR 工作区并加一次重试
+        skipDefaultCheckout()
     }
 
     parameters {
@@ -20,6 +22,20 @@ pipeline {
     }
 
     stages {
+        stage('checkout') {
+            steps {
+                script {
+                    // PR 工作区先清空，避免旧工作区导致的空目录/脏文件问题
+                    if (env.CHANGE_ID) {
+                        deleteDir()
+                    }
+                }
+                retry(2) {
+                    checkout scm
+                }
+            }
+        }
+
         stage('准备 uv') {
             steps {
                 sh '''
@@ -59,16 +75,20 @@ pipeline {
             }
         }
 
-        stage('单元测试') {
+        stage('单元测试与覆盖率') {
             steps {
                 sh '''
                     set -e
                     export PATH="$HOME/.local/bin:$PATH"
-                    rm -f TEST-*.xml
+                    rm -f TEST-*.xml coverage.xml
+                    rm -rf htmlcov
                     uv run python manage.py check
-                    uv run python manage.py test \
+                    uv run coverage run --source=mctp_api manage.py test \
                         --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
                         --verbosity=2
+                    uv run coverage report --show-missing
+                    uv run coverage xml -o coverage.xml
+                    uv run coverage html -d htmlcov
                 '''
             }
         }
@@ -91,6 +111,15 @@ pipeline {
     post {
         always {
             junit allowEmptyResults: true, testResults: 'TEST-*.xml'
+            archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
+            publishHTML(target: [
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'htmlcov',
+                reportFiles: 'index.html',
+                reportName: 'Coverage'
+            ])
             sh 'rm -f TEST-*.xml'
             script {
                 // PR 工作区用完即清；uv 缓存位于 $HOME，不受影响
@@ -110,7 +139,7 @@ pipeline {
             }
         }
         unsuccessful {
-            echo '构建未成功：请检查「代码检查」「单元测试」「Docker 构建」阶段日志。'
+            echo '构建未成功：请检查「代码检查」「单元测试与覆盖率」「Docker 构建」阶段日志。'
         }
     }
 }
