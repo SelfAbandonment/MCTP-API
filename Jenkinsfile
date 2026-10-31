@@ -12,6 +12,7 @@ pipeline {
 
     parameters {
         booleanParam(name: 'SKIP_DOCKER', defaultValue: false, description: '跳过 docker build 验证')
+        booleanParam(name: 'ALLOW_BREAKING', defaultValue: false, description: '允许破坏性契约变更（需前端确认）')
     }
 
     environment {
@@ -75,6 +76,58 @@ pipeline {
             }
         }
 
+        stage('契约兼容检查') {
+            when {
+                changeRequest()
+            }
+            steps {
+                sh '''
+                    set -e
+                    export PATH="$HOME/.local/bin:$PATH"
+                    BASE_REF="${CHANGE_TARGET:-develop}"
+                    BASE_DIR="/tmp/mctp-contract-base-${BUILD_NUMBER}"
+                    rm -rf "$BASE_DIR"
+                    git fetch --no-tags origin "$BASE_REF"
+                    git worktree add --detach "$BASE_DIR" FETCH_HEAD
+                    ( cd "$BASE_DIR" && uv sync --dev >/dev/null && uv run python manage.py spectacular --file base.yaml )
+                    cp "$BASE_DIR/base.yaml" ./base.yaml
+                    uv run python manage.py spectacular --file revision.yaml
+
+                    CID="$(hostname)"
+                    if ! docker inspect "$CID" >/dev/null 2>&1; then
+                        CID="$(grep -oE '[0-9a-f]{64}' /proc/self/cgroup 2>/dev/null | head -1 || true)"
+                    fi
+                    if [ -n "$CID" ] && docker inspect "$CID" >/dev/null 2>&1; then
+                        MOUNT_ARGS="--volumes-from $CID"
+                    else
+                        MOUNT_ARGS="-v $WORKSPACE:$WORKSPACE"
+                    fi
+
+                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff \
+                        changelog base.yaml revision.yaml --format markdown > contract-changelog.md || true
+                    set +e
+                    docker run --rm $MOUNT_ARGS -w "$WORKSPACE" tufin/oasdiff \
+                        breaking base.yaml revision.yaml --format markdown > contract-breaking.md
+                    status=$?
+                    set -e
+                    echo "$status" > contract-status.txt
+                    git worktree remove --force "$BASE_DIR" || true
+                    cat contract-breaking.md
+                    if [ "$status" -gt 1 ]; then
+                        echo "oasdiff 执行失败（exit $status），请检查镜像/参数/schema"
+                        exit 1
+                    fi
+                    if [ "$status" -eq 1 ] && [ "${ALLOW_BREAKING:-false}" != "true" ]; then
+                        echo "检测到破坏性契约变更：请前端确认，或用 ALLOW_BREAKING=true 手动放行"
+                        exit 1
+                    fi
+                    if [ "$status" -eq 1 ]; then
+                        echo "检测到破坏性契约变更，ALLOW_BREAKING=true，已放行"
+                    fi
+                '''
+            }
+        }
+
         stage('单元测试与覆盖率') {
             steps {
                 sh '''
@@ -112,6 +165,7 @@ pipeline {
         always {
             junit allowEmptyResults: true, testResults: 'TEST-*.xml'
             archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'contract-*.md,contract-status.txt', allowEmptyArchive: true
             publishHTML(target: [
                 allowMissing: true,
                 alwaysLinkToLastBuild: true,
@@ -121,7 +175,7 @@ pipeline {
                 reportName: 'Coverage'
             ])
             script {
-                // PR 上回写测试/覆盖率汇总评论（需在删除 XML 之前读取）
+                // PR 上回写测试/覆盖率与契约变更评论（需在删除 XML 之前读取）
                 if (env.CHANGE_ID) {
                     withCredentials([usernamePassword(credentialsId: 'github-MCTP', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                         withEnv([
@@ -129,6 +183,7 @@ pipeline {
                             "GH_REPO=SelfAbandonment/MCTP-API"
                         ]) {
                             sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/ci_report.py || echo "PR 评论失败（不影响构建结果）"'
+                            sh 'export PATH="$HOME/.local/bin:$PATH"; uv run python scripts/contract_report.py || echo "契约评论失败（不影响构建结果）"'
                         }
                     }
                 }
