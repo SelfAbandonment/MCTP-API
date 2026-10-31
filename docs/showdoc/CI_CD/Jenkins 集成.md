@@ -44,11 +44,11 @@ GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`conti
 2. 准备 uv：确认/安装 `uv`，打印 `uv` 版本
 3. 代码检查：`uv sync --dev`、打印 Python 版本、`ruff check`、`ruff format --check`
 4. 迁移与 Schema 检查：`makemigrations --check --dry-run`、`spectacular --validate`（schema 生成失败会直接拦下）
-5. 契约兼容检查（仅 PR）：用 `git worktree` 从目标分支生成 base schema，与当前 revision 用 `tufin/oasdiff` 比较；破坏性变更失败，`ALLOW_BREAKING=true` 可放行
-6. 单元测试与覆盖率：`manage.py check`、`coverage run` 包裹测试（`unittest-xml-reporting` 产出 JUnit XML），再生成 `coverage.xml` / `htmlcov`；Jenkins 有 Coverage HTML 报告与测试趋势
+5. 契约兼容检查（仅 PR，且改动涉及 `mctp_api/**`、`pyproject.toml`、`uv.lock`）：用 `git worktree` 从目标分支生成 base schema，与当前 revision 用固定 digest 的 `tufin/oasdiff` 比较；破坏性变更失败，`ALLOW_BREAKING=true` 可放行
+6. 单元测试与覆盖率：`manage.py check`、`coverage run` 包裹测试（`unittest-xml-reporting` 产出 JUnit XML），再生成 `coverage.xml` / `htmlcov`；行覆盖率低于 **85%** 时失败；Jenkins 有 Coverage HTML 报告与测试趋势
 7. Docker 构建：`docker build` 后立即删除镜像，只验证可构建
 
-PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。`unittest-xml-reporting` 由 `uv sync --dev` 按 `pyproject.toml` 的 dev 组安装。
+PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。构建保留 10 条 / 2 份产物；多分支孤儿策略立即清理已关闭 PR；`MCTP-Cleanup` 每周清理旧工作区与 Docker 缓存。
 
 ## PR 评论
 
