@@ -21,14 +21,25 @@ class StrictInputMixin:
 class PublicAnnouncementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Announcement
-        fields = ("id", "title", "summary", "body", "published_at", "updated_at")
+        fields = ("id", "title", "summary", "body", "category", "is_pinned", "published_at", "updated_at")
         read_only_fields = fields
 
 
 class AnnouncementSerializer(StrictInputMixin, serializers.ModelSerializer):
     class Meta:
         model = Announcement
-        fields = ("id", "title", "summary", "body", "is_published", "published_at", "created_at", "updated_at")
+        fields = (
+            "id",
+            "title",
+            "summary",
+            "body",
+            "category",
+            "is_pinned",
+            "is_published",
+            "published_at",
+            "created_at",
+            "updated_at",
+        )
         read_only_fields = ("id", "created_at", "updated_at")
 
     def validate(self, attrs):
