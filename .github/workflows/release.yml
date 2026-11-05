@@ -1,7 +1,9 @@
 name: Production Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [MCTP-API CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -17,14 +19,93 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   trigger-jenkins:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Trigger MCTP-Deploy
+      - name: Validate main CI gate
+        id: gate
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Manual production releases must run from main"
+            exit 1
+          fi
+          api_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          fe_sha=$(curl -fsS --connect-timeout 10 --max-time 30 \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/SelfAbandonment/MCTP-Frontend/commits/main" | jq -r '.sha')
+          if [ -z "$api_sha" ] || [ -z "$fe_sha" ]; then
+            echo "::error::Could not resolve both production main revisions"
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$VALIDATED_SHA" != "$api_sha" ]; then
+            echo "::notice::A newer main revision exists; skipping stale release"
+            exit 0
+          fi
+          verify_ci() {
+            local repo="$1"
+            local sha="$2"
+            local run
+            if [ "$repo" = "$GITHUB_REPOSITORY" ]; then
+              run=$(gh api --method GET "repos/$repo/actions/workflows/ci.yml/runs" \
+                -f head_sha="$sha" -f event=push -f per_page=1 --jq '.workflow_runs[0] // null') || return 2
+            else
+              local response
+              response=$(curl -fsS --connect-timeout 10 --max-time 30 \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$repo/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=1") || return 2
+              run=$(jq '.workflow_runs[0] // null' <<<"$response") || return 2
+            fi
+            jq -e 'type == "object"' <<<"$run" >/dev/null || return 2
+            jq -e --arg sha "$sha" --arg repo "$repo" \
+              '.status == "completed" and .conclusion == "success" and
+               .event == "push" and .head_branch == "main" and
+               .head_sha == $sha and .head_repository.full_name == $repo' \
+              <<<"$run" >/dev/null
+          }
+          for pair in "$GITHUB_REPOSITORY:$api_sha" "SelfAbandonment/MCTP-Frontend:$fe_sha"; do
+            repo="${pair%%:*}"
+            sha="${pair#*:}"
+            if verify_ci "$repo" "$sha"; then
+              continue
+            else
+              result=$?
+            fi
+            if [ "$result" -ne 1 ]; then
+              echo "::error::Could not verify CI for $repo@$sha"
+              exit "$result"
+            fi
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::Both repositories must have successful main CI before production deployment ($repo@$sha is not ready)"
+              exit 1
+            fi
+            echo "::notice::Waiting for successful main CI on $repo@$sha; its release workflow will retry"
+            exit 0
+          done
+          echo "sha=$api_sha" >> "$GITHUB_OUTPUT"
+          echo "fe_sha=$fe_sha" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger MCTP-Deploy
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_SHA: ${{ steps.gate.outputs.sha }}
+          EXPECTED_FE_SHA: ${{ steps.gate.outputs.fe_sha }}
           JENKINS_URL: ${{ secrets.JENKINS_URL }}
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
           JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
@@ -35,10 +116,16 @@ jobs:
             echo "::error::JENKINS_URL / JENKINS_USER / JENKINS_TOKEN secrets are not configured"
             exit 1
           fi
+          current_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          current_fe_sha=$(curl -fsS --connect-timeout 10 --max-time 30 \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/SelfAbandonment/MCTP-Frontend/commits/main" | jq -r '.sha')
+          if [ "$current_sha" != "$EXPECTED_SHA" ] || [ "$current_fe_sha" != "$EXPECTED_FE_SHA" ]; then
+            echo "::notice::A main revision changed after validation; skipping stale release"
+            exit 0
+          fi
           BASE="${JENKINS_URL%/}"
-          crumb=$(curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" "$BASE/crumbIssuer/api/json" | jq -r '.crumb')
-          curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" \
-            -H "Jenkins-Crumb: $crumb" \
+          curl -fsS --connect-timeout 10 --max-time 30 -u "$JENKINS_USER:$JENKINS_TOKEN" \
             -X POST "$BASE/job/MCTP-Deploy/buildWithParameters" \
             --data-urlencode "BRANCH=main" \
             --data-urlencode "FORCE_DEPLOY=$FORCE_DEPLOY"
