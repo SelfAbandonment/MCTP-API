@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -31,6 +31,27 @@ jobs:
         run: uv run ruff check .
       - name: Ruff format check
         run: uv run ruff format --check .
+
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    env:
+      SECRET_KEY: "ci-test-secret-key-not-for-production"
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --dev
+      - name: Migration check
+        run: uv run python manage.py makemigrations --check --dry-run
+      - name: OpenAPI schema validation
+        run: uv run python manage.py spectacular --validate --file schema.yaml
 
   test:
     runs-on: ubuntu-latest
@@ -44,7 +65,7 @@ jobs:
       SECRET_KEY: "ci-test-secret-key-not-for-production"
       DEBUG: "False"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -63,7 +84,7 @@ jobs:
           uv run coverage xml -o coverage.xml
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -80,6 +101,83 @@ jobs:
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: uv run python scripts/ci_report.py
 
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: schema
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      SECRET_KEY: "ci-test-secret-key-not-for-production"
+      DEBUG: "False"
+      ALLOW_BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --dev
+      - name: Build base and revision schemas
+        run: |
+          set -e
+          BASE_REF="${{ github.base_ref }}"
+          BASE_DIR="/tmp/mctp-contract-base"
+          rm -rf "$BASE_DIR"
+          git fetch --no-tags origin "$BASE_REF"
+          git worktree add --detach "$BASE_DIR" FETCH_HEAD
+          (
+            cd "$BASE_DIR"
+            uv sync --dev
+            uv run python manage.py spectacular --file base.yaml
+          )
+          cp "$BASE_DIR/base.yaml" ./base.yaml
+          uv run python manage.py spectacular --file revision.yaml
+      - name: Run oasdiff
+        run: |
+          set +e
+          docker run --rm -v "$PWD:/work" -w /work \
+            tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
+            changelog base.yaml revision.yaml --format markdown > contract-changelog.md
+          docker run --rm -v "$PWD:/work" -w /work \
+            tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
+            breaking base.yaml revision.yaml --format markdown > contract-breaking.md
+          status=$?
+          set -e
+          echo "$status" > contract-status.txt
+          if [ "$status" -gt 1 ]; then
+            echo "oasdiff 执行失败（exit $status）"
+            exit 1
+          fi
+          if [ "$status" -eq 1 ] && [ "$ALLOW_BREAKING" != "true" ]; then
+            echo "检测到破坏性契约变更；给 PR 加 allow-breaking 标签可放行"
+            exit 1
+          fi
+      - name: Comment contract report on PR
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: uv run python scripts/contract_report.py
+      - name: Upload contract reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-reports
+          path: |
+            contract-*.md
+            contract-status.txt
+          if-no-files-found: ignore
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -88,7 +186,7 @@ jobs:
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
       github.ref == 'refs/heads/develop'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build develop snapshot
         uses: docker/build-push-action@v7
         with:
@@ -104,7 +202,7 @@ jobs:
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build production image
         uses: docker/build-push-action@v7
         with:
