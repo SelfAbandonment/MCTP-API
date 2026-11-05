@@ -148,9 +148,6 @@ jobs:
         with:
           name: openapi-schema
           path: revision-schema
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - name: Build base and revision schemas
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
