@@ -207,15 +207,6 @@ pipeline {
                 notifyAstrBot('fixed', "MCTP-API 构建恢复：${env.CHANGE_BRANCH ?: env.BRANCH_NAME ?: ''}")
             }
         }
-        success {
-            script {
-                // main 通过后自动触发生产部署（MCTP-Deploy 同时构建前后端）
-                if (env.BRANCH_NAME == 'main') {
-                    echo 'main 构建通过，触发生产部署 MCTP-Deploy'
-                    build job: 'MCTP-Deploy', wait: false, parameters: [string(name: 'BRANCH', value: 'main')]
-                }
-            }
-        }
         cleanup {
             script {
                 // 通知需要工作区，清理放到最后
