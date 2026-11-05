@@ -1,0 +1,45 @@
+name: Production Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: Force deploy even if Jenkins already deployed this SHA pair
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-jenkins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger MCTP-Deploy
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          FORCE_DEPLOY: ${{ inputs.force_deploy || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$JENKINS_URL" ] || [ -z "$JENKINS_USER" ] || [ -z "$JENKINS_TOKEN" ]; then
+            echo "::error::JENKINS_URL / JENKINS_USER / JENKINS_TOKEN secrets are not configured"
+            exit 1
+          fi
+          BASE="${JENKINS_URL%/}"
+          crumb=$(curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" "$BASE/crumbIssuer/api/json" | jq -r '.crumb')
+          curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" \
+            -H "Jenkins-Crumb: $crumb" \
+            -X POST "$BASE/job/MCTP-Deploy/buildWithParameters" \
+            --data-urlencode "BRANCH=main" \
+            --data-urlencode "FORCE_DEPLOY=$FORCE_DEPLOY"
+          echo "MCTP-Deploy triggered (force=$FORCE_DEPLOY)"
