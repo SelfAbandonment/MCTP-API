@@ -21,7 +21,7 @@ def read(path: str) -> str:
 
 
 def read_status() -> str:
-    return read("contract-status.txt").strip() or "0"
+    return read("contract-status.txt").strip() or "unavailable"
 
 
 def truncate(text: str) -> str:
@@ -32,12 +32,14 @@ def truncate(text: str) -> str:
 
 
 def build_comment(breaking: str, changelog: str, status: str, build_url: str) -> str:
-    has_breaking = status not in ("", "0")
+    has_breaking = status == "1"
     lines = [MARKER, "### API 契约变更", ""]
     if has_breaking:
-        lines.append("*检测到破坏性变更，需要前端确认；可用 `ALLOW_BREAKING=true` 放行。*")
-    else:
+        lines.append("*检测到破坏性变更，需要前端确认；GitHub Actions 可用 PR 标签 `allow-breaking` 放行。*")
+    elif status == "0":
         lines.append("未检测到破坏性变更。")
+    else:
+        lines.append("契约检查未完成或执行失败；不能确认兼容性，请查看 CI 日志。")
     lines.append("")
     details = truncate(breaking) if has_breaking else truncate(changelog)
     if details:
