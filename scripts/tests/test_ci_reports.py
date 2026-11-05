@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from scripts import ci_report, contract_report
+from scripts import ci_report, contract_report, github_comments
 
 
 class CiReportTest(unittest.TestCase):
@@ -43,6 +43,58 @@ class ContractReportTest(unittest.TestCase):
                 self.assertIn("不能确认兼容性", body)
                 self.assertNotIn("未检测到破坏性变更", body)
                 self.assertNotIn("标签", body)
+
+
+class GitHubCommentsTest(unittest.TestCase):
+    def test_upsert_searches_all_pages_and_removes_duplicates(self):
+        calls = []
+
+        def github(path, method, _token, payload=None):
+            calls.append((path, method, payload))
+            if method == "GET" and path.endswith("page=1"):
+                return [{"id": item, "body": "<!-- other -->"} for item in range(100)]
+            if method == "GET":
+                return [
+                    {"id": 101, "body": "<!-- marker -->"},
+                    {"id": 102, "body": "<!-- marker -->"},
+                ]
+            return {"id": 103}
+
+        result = github_comments.upsert_comment(
+            "owner/repo",
+            "12",
+            "token",
+            "<!-- marker --> updated",
+            "<!-- marker -->",
+            github,
+        )
+
+        self.assertEqual(result, ("updated", 101, 1))
+        self.assertEqual([call[1] for call in calls], ["GET", "GET", "PATCH", "DELETE"])
+        self.assertIn("page=2", calls[1][0])
+
+    def test_upsert_creates_comment_only_after_all_pages(self):
+        calls = []
+
+        def github(path, method, _token, _payload=None):
+            calls.append((path, method))
+            if method == "GET":
+                if path.endswith("page=1"):
+                    return [{"id": item, "body": "other"} for item in range(100)]
+                return []
+            return {"id": 201}
+
+        result = github_comments.upsert_comment(
+            "owner/repo",
+            "12",
+            "token",
+            "<!-- marker -->",
+            "<!-- marker -->",
+            github,
+        )
+
+        self.assertEqual(result, ("created", 201, 0))
+        self.assertEqual([method for _, method in calls], ["GET", "GET", "POST"])
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
 
 - `push`：`main`、`develop`；PR：目标为 `main`、`develop`；支持手动 CI。
 - 同一 ref 新 CI 会取消旧 CI；发布工作流单独排队，不中止已运行的发布请求。
-- 默认权限为 `contents: read`，PR 报告 job 额外申请评论权限，release 额外申请 `actions: read`。
+- 默认权限为 `contents: read`，PR 报告 job 额外申请评论权限；通知 job 额外申请 `actions: read` 以判断是否需要发送恢复通知，release 也额外申请 `actions: read`。
 - Python **3.12**，`astral-sh/setup-uv@v7`；`uv sync --locked --dev` 和 `UV_LOCKED=true` 确保所有步骤不静默修改锁文件。
 - Django job 注入 CI 假 `SECRET_KEY` 与 `DEBUG=False`，在 runner 内使用 SQLite；不读取生产环境。
 
@@ -29,7 +29,7 @@
 - `scripts/tests` 由 `python -m unittest discover -s scripts/tests -v` 显式执行。
 - Django 使用 `xmlrunner` 和 `coverage run --source=mctp_api`。
 - 失败后仍从存在的 `.coverage` 生成 XML，再检查行覆盖率下限 **85%**；不会因为测试/门禁失败而遗漏可生成的覆盖率报告。
-- JUnit/覆盖率归档保留 14 天。同仓 PR 回写实际通过/失败/跳过数与覆盖率；fork 不尝试写评论。
+- JUnit/覆盖率归档保留 14 天。同仓 PR 回写实际通过/失败/跳过数与覆盖率；评论按页查找并清理重复标记评论。评论回写失败只产生 warning，不改变 CI 结果；fork 不尝试写评论。
 
 ### OpenAPI 契约
 
@@ -84,5 +84,7 @@ Jenkins 已实现两仓 main SHA 读取、SHA 对去重和串行排队；GitHub 
 ## 配套工作流
 
 - `auto-label.yml`：同仓 PR 按分支前缀管理标签；fork 跳过，缺失标签只告警。
-- CI 失败通知调用 `MCTP-Notify`；缺少 Secret/HTTP 失败显示 warning，不静默吞掉，也不覆盖 CI 原始失败。
+- `main`/`develop` push 的 CI 成功、失败都会调用 `MCTP-Notify`，同 ref 只保留最新 run 的通知；PR 与手动运行保留失败/恢复通知，不广播每次成功。通知包含失败 job、commit 与 `ACTOR`（PR 作者或 push/手动运行触发者）。Jenkins 任务需声明并转发 `ACTOR` 为 webhook 的 `actor` 字段，才能使用插件的作者 QQ 映射。缺少 Secret/HTTP 失败显示 warning，不静默吞掉，也不覆盖 CI 原始结果。
+- 生产 release workflow 只确认 `MCTP-Deploy` 已接受请求，不代表实际部署结果。开始/成功/失败/回滚通知需由活动 Jenkins `MCTP-Deploy` post actions 调用 `MCTP-Notify`，使用 `EVENT=deploy`；回滚必须由部署任务明确报告。本仓库不包含活动 Jenkins 任务配置。
+- fork PR 不使用 Jenkins Secrets，也不发送机器人通知或写 PR 评论；如需支持外部贡献者，必须另行设计不执行不可信代码的安全回写流程。
 - Jenkins 不再跑 API CI；保留的根 [Jenkinsfile](../../../Jenkinsfile) 是历史脚本，不要作为活跃任务重新启用。

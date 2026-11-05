@@ -11,6 +11,7 @@ import urllib.request
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 PLUGIN = "astrbot_plugin_mctp_ci"
 DEFAULT_PATH = f"/api/v1/plugins/extensions/{PLUGIN}/webhook"
@@ -22,7 +23,7 @@ def _trim(value: Any) -> str:
 
 
 def build_payload(env: dict[str, str] | None = None) -> dict[str, Any]:
-    env = env or os.environ
+    env = env if env is not None else os.environ
     status = _trim(env.get("NOTIFY_STATUS")).lower()
     if status not in STATUSES:
         status = "info"
@@ -45,7 +46,7 @@ def build_payload(env: dict[str, str] | None = None) -> dict[str, Any]:
             "duration": _trim(env.get("NOTIFY_DURATION")),
             "details": details,
             "url": _trim(env.get("NOTIFY_URL")),
-            "time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
+            "time": datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M"),
         },
     }
 
