@@ -18,8 +18,8 @@
 
 ## CI 与 Jenkins
 
-- GitHub Actions（必需检查）`.github/workflows/ci.yml`：PR 与 push 到 `main`/`develop` 时跑 lint + test（JUnit、覆盖率下限 85%）+ docker 构建，并在 PR 上回写 CI 汇总评论。
-- Jenkins `Jenkinsfile`（仓库根）对应任务 `MCTP-API-CI`：只做 ruff、迁移/Schema、OpenAPI 契约兼容检查与 PR 契约评论，`main` 通过后自动触发 `MCTP-Deploy`；不再重复单测/覆盖率/Docker。
+- GitHub Actions 负责全部 CI：`.github/workflows/ci.yml` 跑 lint + test（JUnit、覆盖率下限 85%）+ 迁移/Schema + OpenAPI 契约 + docker 构建，并在 PR 上回写 CI 汇总评论；`release.yml` 在 `main` 合并后调用 Jenkins `MCTP-Deploy`。
+- Jenkins 只保留 `MCTP-Deploy`（生产部署）和 `MCTP-Notify`（AstrBot 通知），不再跑 API CI。
 - 本地等价命令：`uv run ruff check .`、`uv run python manage.py test --verbosity=2`。
 - 没通过 CI 的分支不要合并；工作流 job 改名会破坏分支保护的必需检查。
 
