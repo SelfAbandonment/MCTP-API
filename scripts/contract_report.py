@@ -28,7 +28,7 @@ def truncate(text: str) -> str:
     text = text.strip()
     if len(text) <= MAX_CHARS:
         return text
-    return text[:MAX_CHARS] + "\n\n> 输出过长已截断，完整内容见 Jenkins 归档产物。"
+    return text[:MAX_CHARS] + "\n\n> 输出过长已截断，完整内容见 CI 归档产物。"
 
 
 def build_comment(breaking: str, changelog: str, status: str, build_url: str) -> str:
@@ -45,7 +45,7 @@ def build_comment(breaking: str, changelog: str, status: str, build_url: str) ->
     else:
         lines.append("_没有可展示的 diff 输出。_")
     if build_url:
-        lines.extend(["", f"[查看 Jenkins 构建]({build_url})"])
+        lines.extend(["", f"[查看 CI 构建]({build_url})"])
     return "\n".join(lines)
 
 
