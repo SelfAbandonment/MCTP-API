@@ -43,6 +43,13 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+TEST-*.xml
+contract-*.md
+contract-status.txt
+base.yaml
+revision.yaml
+schema.yaml
+revision-schema/
 *.cover
 .hypothesis/
 .pytest_cache/
@@ -83,6 +90,8 @@ celerybeat-schedule
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/

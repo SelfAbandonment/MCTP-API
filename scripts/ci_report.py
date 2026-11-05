@@ -38,13 +38,14 @@ def collect_coverage() -> str:
 def build_comment(tests: dict[str, int], coverage: str, build_url: str) -> str:
     lines = [MARKER, "### CI 报告", ""]
     if tests["tests"]:
-        lines.append(f"- **测试**：{tests['tests']} 通过 / {tests['failed']} 失败 / {tests['skipped']} 跳过")
+        passed = tests["tests"] - tests["failed"] - tests["skipped"]
+        lines.append(f"- **测试**：{passed} 通过 / {tests['failed']} 失败 / {tests['skipped']} 跳过")
     if coverage:
         lines.append(f"- **覆盖率**：{coverage}")
     if len(lines) == 3:
         lines.append("- 本次构建没有可汇总的报告")
     if build_url:
-        lines.extend(["", f"[查看 Jenkins 构建]({build_url})"])
+        lines.extend(["", f"[查看 CI 构建]({build_url})"])
     return "\n".join(lines)
 
 
