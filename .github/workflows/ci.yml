@@ -109,6 +109,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Comment CI report on PR
+        id: pr_comment
         if: >-
           always() && github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
@@ -119,6 +120,9 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: uv run python scripts/ci_report.py
+      - name: Report PR comment failure
+        if: always() && steps.pr_comment.outcome == 'failure'
+        run: echo "::warning::PR CI report comment failed; see the comment step logs"
 
   contract:
     runs-on: ubuntu-latest
@@ -185,6 +189,7 @@ jobs:
             exit 1
           fi
       - name: Comment contract report on PR
+        id: contract_comment
         if: >-
           always() &&
           github.event.pull_request.head.repo.full_name == github.repository
@@ -195,6 +200,9 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: uv run python scripts/contract_report.py
+      - name: Report contract comment failure
+        if: always() && steps.contract_comment.outcome == 'failure'
+        run: echo "::warning::PR contract report comment failed; see the comment step logs"
       - name: Upload contract reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -242,39 +250,118 @@ jobs:
 
   notify:
     if: >-
-      always() && contains(needs.*.result, 'failure') &&
+      always() &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     needs: [lint, test, schema, contract, docker, production]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Notify Jenkins
         id: notification
         continue-on-error: true
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JENKINS_URL: ${{ secrets.JENKINS_URL }}
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
           JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          BASE_REF: ${{ github.base_ref || '' }}
+          ACTOR: ${{ github.event.pull_request.user.login || github.actor }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          failed_jobs=""
+          for pair in \
+            "lint:${{ needs.lint.result }}" \
+            "test:${{ needs.test.result }}" \
+            "schema:${{ needs.schema.result }}" \
+            "contract:${{ needs.contract.result }}" \
+            "docker:${{ needs.docker.result }}" \
+            "production:${{ needs.production.result }}"; do
+            job="${pair%%:*}"
+            result="${pair#*:}"
+            if [ "$result" = "failure" ]; then
+              failed_jobs="${failed_jobs}${failed_jobs:+, }${job}"
+            fi
+          done
+          status=failure
+          title="MCTP-API CI 失败"
+          notification_details="失败检查: $failed_jobs"
+          if [ -z "$failed_jobs" ]; then
+            required_jobs="lint:${{ needs.lint.result }} test:${{ needs.test.result }} schema:${{ needs.schema.result }}"
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              required_jobs="$required_jobs contract:${{ needs.contract.result }}"
+              if [ "$BASE_REF" = "develop" ]; then
+                required_jobs="$required_jobs docker:${{ needs.docker.result }}"
+              elif [ "$BASE_REF" = "main" ]; then
+                required_jobs="$required_jobs production:${{ needs.production.result }}"
+              fi
+            elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+              if [ "$BRANCH" = "develop" ]; then
+                required_jobs="$required_jobs docker:${{ needs.docker.result }}"
+              elif [ "$BRANCH" = "main" ]; then
+                required_jobs="$required_jobs production:${{ needs.production.result }}"
+              fi
+            fi
+            incomplete_jobs=""
+            for pair in $required_jobs; do
+              job="${pair%%:*}"
+              result="${pair#*:}"
+              if [ "$result" != "success" ]; then
+                incomplete_jobs="${incomplete_jobs}${incomplete_jobs:+, }${job}=${result}"
+              fi
+            done
+            if [ -n "$incomplete_jobs" ]; then
+              echo "当前 CI 未全部成功（$incomplete_jobs），跳过恢复通知"
+              exit 0
+            fi
+            previous=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+              -f "branch=$BRANCH" -f "event=$GITHUB_EVENT_NAME" -f per_page=100 |
+              jq -r --argjson current "$GITHUB_RUN_ID" \
+                '[.workflow_runs[] | select(.id < $current and .status == "completed" and (.conclusion == "success" or .conclusion == "failure"))] | max_by(.id).conclusion // ""')
+            if [ "$previous" = "failure" ]; then
+              status=fixed
+              title="MCTP-API CI 已恢复"
+              notification_details="此前失败的 CI 检查已通过"
+            elif [ "$GITHUB_EVENT_NAME" = "push" ] &&
+                 { [ "$BRANCH" = "main" ] || [ "$BRANCH" = "develop" ]; }; then
+              status=success
+              title="MCTP-API CI 通过"
+              notification_details="所有必需检查通过"
+            else
+              echo "此事件无需发送成功通知"
+              exit 0
+            fi
+          fi
+          latest_run=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f "branch=$BRANCH" -f "event=$GITHUB_EVENT_NAME" -f per_page=1 \
+            --jq '.workflow_runs[0].id // empty')
+          if [ "$latest_run" != "$GITHUB_RUN_ID" ]; then
+            echo "::notice::A newer run exists for $BRANCH; skipping stale notification"
+            exit 0
+          fi
           if [ -z "$JENKINS_URL" ] || [ -z "$JENKINS_USER" ] || [ -z "$JENKINS_TOKEN" ]; then
             echo "::error::Jenkins notification secrets are not configured"
             exit 1
           fi
           BASE="${JENKINS_URL%/}"
+          DETAILS="${notification_details}; commit ${GITHUB_SHA:0:7}"
           curl -fsS --connect-timeout 10 --max-time 30 -u "$JENKINS_USER:$JENKINS_TOKEN" \
             -X POST "$BASE/job/MCTP-Notify/buildWithParameters" \
             --data-urlencode "REPO=MCTP-API" \
-            --data-urlencode "STATUS=failure" \
-            --data-urlencode "TITLE=MCTP-API CI 失败" \
+            --data-urlencode "EVENT=ci" \
+            --data-urlencode "STATUS=$status" \
+            --data-urlencode "TITLE=$title" \
             --data-urlencode "BRANCH=$BRANCH" \
             --data-urlencode "PR=$PR_NUMBER" \
+            --data-urlencode "ACTOR=$ACTOR" \
             --data-urlencode "URL=$BUILD_URL" \
-            --data-urlencode "DETAILS=GitHub Actions 构建失败"
+            --data-urlencode "DETAILS=$DETAILS"
 
       - name: Report notification failure
         if: always() && steps.notification.outcome == 'failure'

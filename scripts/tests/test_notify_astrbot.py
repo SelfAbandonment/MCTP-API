@@ -36,6 +36,12 @@ class BuildPayloadTest(unittest.TestCase):
         self.assertEqual(config["payload"]["status"], "info")
         self.assertEqual(config["payload"]["repo"], "MCTP-API")
 
+    def test_empty_environment_does_not_read_process_environment(self):
+        config = build_payload({})
+        self.assertEqual(config["base"], "")
+        self.assertEqual(config["api_key"], "")
+        self.assertEqual(config["token"], "")
+
 
 class SendNotificationTest(unittest.TestCase):
     def test_skips_without_config(self):

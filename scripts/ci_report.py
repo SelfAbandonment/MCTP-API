@@ -10,6 +10,11 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 
+if __package__:
+    from .github_comments import upsert_comment
+else:
+    from github_comments import upsert_comment
+
 MARKER = "<!-- mctp-ci-report -->"
 
 
@@ -64,7 +69,8 @@ def github(path: str, method: str, token: str, payload: dict | None = None):
         },
     )
     with urllib.request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode())
+        body = response.read().decode()
+        return json.loads(body) if body else None
 
 
 def main() -> None:
@@ -75,14 +81,11 @@ def main() -> None:
         print("缺少 GH_TOKEN / GH_REPO / PR_NUMBER，跳过 PR 评论")
         return
     body = build_comment(collect_tests(), collect_coverage(), os.environ.get("BUILD_URL", ""))
-    comments = github(f"/repos/{repo}/issues/{pull_request}/comments?per_page=100", "GET", token)
-    existing = next((item for item in comments if MARKER in (item.get("body") or "")), None)
-    if existing:
-        github(f"/repos/{repo}/issues/comments/{existing['id']}", "PATCH", token, {"body": body})
-        print(f"已更新 PR #{pull_request} 的 CI 评论 #{existing['id']}")
+    action, comment_id, duplicates = upsert_comment(repo, pull_request, token, body, MARKER, github)
+    if action == "updated":
+        print(f"已更新 PR #{pull_request} 的 CI 评论 #{comment_id}（清理 {duplicates} 条重复）")
     else:
-        created = github(f"/repos/{repo}/issues/{pull_request}/comments", "POST", token, {"body": body})
-        print(f"已新增 PR #{pull_request} 的 CI 评论 #{created['id']}")
+        print(f"已新增 PR #{pull_request} 的 CI 评论 #{comment_id}")
 
 
 if __name__ == "__main__":
@@ -90,3 +93,4 @@ if __name__ == "__main__":
         main()
     except (urllib.error.URLError, OSError, KeyError, ValueError) as error:
         print(f"PR 评论失败（不影响构建结果）：{error}")
+        raise SystemExit(1) from error
