@@ -1,79 +1,52 @@
 # Jenkins 集成
 
-## 目标结构
+## 当前职责
 
-| 任务 | 类型 | 脚本 | 触发 |
-|---|---|---|---|
-| `MCTP-API-CI` | Multibranch Pipeline | `Jenkinsfile` | push `develop`/`main`、PR |
-| `MCTP-Deploy` | Pipeline | 内联脚本（Jenkins 任务配置） | `MCTP-API-CI` 或 `MCTP-FE` 的 `main` 构建成功后自动触发 |
+GitHub Actions 负责全部前后端 CI，详情见 [GitHub Actions CI](GitHub%20Actions%20CI.md)。
+Jenkins 只负责生产部署、AstrBot 通知与磁盘治理。
 
-## 建任务
-
-1. New Item → **Multibranch Pipeline**，名字 `MCTP-API-CI`
-2. Branch Sources → GitHub：
-   - Repository URL：`https://github.com/SelfAbandonment/MCTP-API.git`
-   - Credentials：`github-MCTP`
-3. Behaviors：
-   - Discover branches，Filter by name：`develop main`
-   - Discover pull requests from origin，Strategy：Merging the pull request with the current target branch revision
-4. Build Configuration → Script Path：`Jenkinsfile`
-5. Scan 触发器：Periodically if not otherwise run → 5 分钟
-6. 保存后执行一次 **Scan Repository Now**
-
-## 环境要求
-
-- agent 需要 `docker`（`Docker 构建` 阶段使用）
-- 没有 `uv` 时流水线会装到用户目录的 `.local/bin`，需要能访问 `astral.sh`；内网环境请在 agent 上预装 uv
-
-## 状态回写
-
-GitHub Branch Source 会为每个分支和 PR 自动回写两个 status：`continuous-integration/jenkins/branch` 和 `continuous-integration/jenkins/pr-merge`。
-
-注意：这个版本的 `github` 插件没有 `githubNotify` 步骤，脚本里调用会报 `NoSuchMethodError`，所以流水线不自己回写状态。
-
-## 参数
-
-| 参数 | 默认 | 说明 |
+| 任务 | 用途 | 触发 |
 |---|---|---|
-| `ALLOW_BREAKING` | false | 允许破坏性 OpenAPI 契约变更（需前端确认后手动放行） |
+| `MCTP-Deploy` | `main` 的前端 dist + 后端镜像联合部署 | 两仓库 release workflow 请求 |
+| `MCTP-Notify` | AstrBot 通知 | GitHub Actions CI 失败 |
+| `MCTP-Cleanup` | 部署工作区磁盘治理 | Jenkins 定时、手动 |
 
-## 阶段
+核查时已通过 Jenkins API 核实以上任务。`MCTP-Deploy` 只公开 `BRANCH` 和 `FORCE_DEPLOY` 两个参数；最近检查的部署构建由用户触发，尚不能据此确认 GitHub 自动发布已实际跑通。旧 `MCTP-API-CI`、`MCTP-FE` 多分支 CI 已不在任务列表中。
+根 [Jenkinsfile](../../../Jenkinsfile) 仅保留历史实现，不代表 CI 仍在 Jenkins 跑。
+不要按旧文档重新添加多分支任务、GitHub webhook 或 Jenkins 必需状态。
 
-1. checkout：`skipDefaultCheckout` + 显式 `checkout scm`（`retry(2)`）；PR 构建先 `deleteDir()`
-2. 准备 uv：确认/安装 `uv`，打印 `uv` 版本
-3. 代码检查：`uv sync --dev`、打印 Python 版本、`ruff check`、`ruff format --check`
-4. 迁移与 Schema 检查：`makemigrations --check --dry-run`、`spectacular --validate`（schema 生成失败会直接拦下）
-5. 契约兼容检查（仅 PR，且改动涉及 `mctp_api/**`、`pyproject.toml`、`uv.lock`）：用 `git worktree` 从目标分支生成 base schema，与当前 revision 用固定 digest 的 `tufin/oasdiff` 比较；破坏性变更失败，`ALLOW_BREAKING=true` 可放行
+## 生产发布接口
 
-单元测试、覆盖率（下限 85%）与 JUnit 报告由 GitHub Actions 的 `test` job 负责；Docker 构建也在 GitHub Actions。Jenkins 不再重复这些步骤。
+- GitHub 仓库需配置 Secret：`JENKINS_URL`、`JENKINS_USER`、`JENKINS_TOKEN`。
+- 使用 Jenkins 用户 **API Token**，不是密码；API Token POST 不需要依赖 crumbIssuer。
+- 当前 `MCTP-Deploy` 参数只有 `BRANCH` 和 `FORCE_DEPLOY`；workflow 保持这两个参数，不发送不存在的 SHA 参数。
+- `BRANCH=main`，部署任务应在 precheck 拒绝其他分支；同任务并发排队，不中止进行中的部署。
+- release 从成功的 `main` push CI 完成事件触发，并校验前后端两个当前 `main` SHA 的 push CI 都成功；请求前再次确认两边 SHA 未变。跨仓使用公开 GitHub Actions API；网络错误、限流或无成功 CI 时不会触发部署。
+- 手动 GitHub release 也必须选择 `main` 并满足双仓 CI 门禁；从 Jenkins 直接启动的手动构建不经过 GitHub Actions 门禁，操作前需人工确认两仓 CI。
+- 自动 POST 无重试且有超时。GitHub 请求成功不代表 Jenkins 部署成功；网络超时时先查队列/构建，再决定是否重试。
+- main 合并后必须核对对应部署构建及 API 健康检查。此次未触发部署。
 
-PR 构建结束后自动 `cleanWs()`；`uv` 缓存位于 `$HOME`，不受影响。构建保留 10 条 / 2 份产物；多分支孤儿策略立即清理已关闭 PR；`MCTP-Cleanup` 每周清理旧工作区与 Docker 缓存。
+## 已有部署保护与剩余边界
 
-## PR 评论
+- Jenkins 已在 `precheck` 读取前后端 `main` SHA、按 SHA 对去重，并通过同任务排队避免并行覆盖。
+- 任务随后仍按 `BRANCH=main` 检出分支，不是按 `precheck` 记录的 commit 检出。若任一 `main` 在检查后、checkout 前移动，仍存在竞态；要消除它，需使用已记录 SHA checkout。
+- GitHub release workflow 会校验两仓对应 SHA 的 CI；Jenkins 的 SHA 对去重与串行队列继续作为第二道保护。
+- 核实 SQLite 数据卷、备份、迁移和 staticfiles 收集；CI 镜像构建不能替代这些部署验证。
+- Coolify 不应再监听 main 自动部署；此次未访问/修改 Coolify。
 
-- **GitHub Actions** 回写 CI 汇总评论：测试通过/失败/跳过数、覆盖率、构建链接（`scripts/ci_report.py`）
-- **Jenkins** 回写 API 契约变更评论：是否有破坏性变更、`oasdiff` 变更详情、Jenkins 构建链接（`scripts/contract_report.py`）
-- 两者各自带 HTML 标记，重复构建只更新同一条；评论失败不影响构建结果
-- 协作者在仓库内分支提的 PR 同样会收到（fork PR 目前不在发现范围内）；Jenkins 凭证需要 Issues 写权限
+本次只修改本地独立工作区，没有更新 Jenkins XML、GitHub 分支保护、Secrets 或生产环境变量。
 
-## 生产部署
+## 通知
 
-- 生产由 `MCTP-Deploy` 负责（前端 dist + 后端镜像），GitHub Pages 只作 `main` 前端预览
-- `MCTP-API-CI` 的 `main` 构建成功后自动触发 `MCTP-Deploy`（`BRANCH=main`）
-- `MCTP-Deploy` 带 `precheck`，非 `main` 直接失败；并发构建排队而不是中止，避免部署中途被打断
-- Coolify 不再是生产部署路径；如仍在监听 `main`，需在 Coolify 侧关闭自动部署
+`MCTP-Notify` 接受 `REPO`、`STATUS`、`TITLE`、`BRANCH`、`PR`、`URL`、`DETAILS`。
+CI 失败请求通知；fork 无 Secrets 时不尝试。请求失败只记录明确 warning，不改变原 CI 失败结论。
+AstrBot 地址、API Key、webhook token 在 Jenkins 凭证中维护，不写入仓库。
 
-## AstrBot 构建通知
+## 排查顺序
 
-- 需要三个 Jenkins **Secret text** 凭证（Global）：
-  - `astrbot-base-url`：`http://<AstrBot-IP>:6185`
-  - `astrbot-api-key`：AstrBot OpenAPI Key，scope 含 `plugin`
-  - `astrbot-webhook-token`：插件配置里的 `webhook_token`
-- 触发：`failure`、`fixed`（上次失败本次恢复）；凭证缺失或网络失败只写日志，不影响构建
-- 通知内容：仓库、分支/PR、构建号、耗时、链接，渲染为图片卡片；图片发送失败自动回退纯文本
-- 插件源码在 workspace 的 `astrbot-plugins/astrbot_plugin_mctp_ci/`（不在本仓库）
+1. whoami 确认凭证可用，再 list_jobs 确認任务名，不猜任务。
+2. get_job/list_builds 看参数和最近构建。
+3. 失败时查看构建详情、stage 和 console log；日志输出主动脱敏。
+4. 确需触发时再 trigger/wait；未经确认不要重跑生产部署。
 
-## 与 GitHub Actions 的分工
-
-GitHub Actions 仍是主门禁（分支保护必需检查）；Jenkins 做同口径复核，并在 `main` 成功后承担生产部署。
-若 Jenkins agent 不稳定，可先把 `jenkins/mctp-api` 设为非必需检查。
+401 通常是 Token，403 是权限，404 是任务/构建号；API Token 与登录密码不能混用。

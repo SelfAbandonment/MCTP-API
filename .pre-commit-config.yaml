@@ -20,4 +20,4 @@ repos:
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
-        args: [feat, fix, docs, style, refactor, test, chore]
+        args: [feat, fix, docs, style, refactor, test, chore, ci, build, perf, revert]

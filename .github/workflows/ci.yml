@@ -14,6 +14,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  UV_LOCKED: "true"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -26,7 +29,7 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - name: Sync dependencies
-        run: uv sync --dev
+        run: uv sync --locked --dev
       - name: Ruff check
         run: uv run ruff check .
       - name: Ruff format check
@@ -40,18 +43,25 @@ jobs:
       SECRET_KEY: "ci-test-secret-key-not-for-production"
       DEBUG: "False"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
       - name: Sync dependencies
-        run: uv sync --dev
+        run: uv sync --locked --dev
       - name: Migration check
         run: uv run python manage.py makemigrations --check --dry-run
       - name: OpenAPI schema validation
         run: uv run python manage.py spectacular --validate --file schema.yaml
+      - name: Upload validated schema
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi-schema
+          path: schema.yaml
+          if-no-files-found: error
+          retention-days: 14
 
   test:
     runs-on: ubuntu-latest
@@ -72,16 +82,22 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --locked --dev
       - name: Django check
         run: uv run python manage.py check
+      - name: CI script tests
+        run: uv run python -m unittest discover -s scripts/tests -v
       - name: Run tests with JUnit + coverage
         run: |
           uv run coverage run --source=mctp_api manage.py test \
             --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
             --verbosity=2
-          uv run coverage report --fail-under=85 --show-missing
-          uv run coverage xml -o coverage.xml
+      - name: Generate coverage XML
+        if: always() && hashFiles('.coverage') != ''
+        run: uv run coverage xml -o coverage.xml
+      - name: Check coverage
+        if: always() && hashFiles('.coverage') != ''
+        run: uv run coverage report --fail-under=85 --show-missing
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -91,8 +107,11 @@ jobs:
             TEST-*.xml
             coverage.xml
           if-no-files-found: ignore
+          retention-days: 14
       - name: Comment CI report on PR
-        if: github.event_name == 'pull_request' && always()
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,7 +133,7 @@ jobs:
       DEBUG: "False"
       ALLOW_BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup uv
@@ -123,28 +142,37 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - name: Sync dependencies
-        run: uv sync --dev
+        run: uv sync --locked --dev
+      - name: Download validated revision schema
+        uses: actions/download-artifact@v8
+        with:
+          name: openapi-schema
+          path: revision-schema
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Build base and revision schemas
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          set -e
-          BASE_REF="${{ github.base_ref }}"
-          BASE_DIR="/tmp/mctp-contract-base"
-          rm -rf "$BASE_DIR"
-          git fetch --no-tags origin "$BASE_REF"
-          git worktree add --detach "$BASE_DIR" FETCH_HEAD
+          set -euo pipefail
+          BASE_DIR="${RUNNER_TEMP}/mctp-contract-base-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git worktree add --detach "$BASE_DIR" "$BASE_SHA"
+          trap 'git worktree remove --force "$BASE_DIR"' EXIT
           (
             cd "$BASE_DIR"
-            uv sync --dev
+            uv sync --locked --dev
             uv run python manage.py spectacular --file base.yaml
           )
           cp "$BASE_DIR/base.yaml" ./base.yaml
-          uv run python manage.py spectacular --file revision.yaml
+          cp revision-schema/schema.yaml ./revision.yaml
       - name: Run oasdiff
         run: |
-          set +e
+          set -euo pipefail
           docker run --rm -v "$PWD:/work" -w /work \
             tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
             changelog base.yaml revision.yaml --format markdown > contract-changelog.md
+          set +e
           docker run --rm -v "$PWD:/work" -w /work \
             tufin/oasdiff@sha256:75a513546b09466bfcbb192bd1ed117e5a22945306602ba2a7bbebf2665d1076 \
             breaking base.yaml revision.yaml --format markdown > contract-breaking.md
@@ -160,7 +188,9 @@ jobs:
             exit 1
           fi
       - name: Comment contract report on PR
-        if: always()
+        if: >-
+          always() &&
+          github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -170,18 +200,21 @@ jobs:
         run: uv run python scripts/contract_report.py
       - name: Upload contract reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: contract-reports
           path: |
             contract-*.md
             contract-status.txt
+            base.yaml
+            revision.yaml
           if-no-files-found: ignore
+          retention-days: 14
 
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test]
+    needs: [lint, test, schema]
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
       github.ref == 'refs/heads/develop'
@@ -197,7 +230,7 @@ jobs:
   production:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test]
+    needs: [lint, test, schema]
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -211,12 +244,17 @@ jobs:
           tags: mctp-api:production-${{ github.sha }}
 
   notify:
-    if: always() && contains(needs.*.result, 'failure')
+    if: >-
+      always() && contains(needs.*.result, 'failure') &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     needs: [lint, test, schema, contract, docker, production]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Notify Jenkins
+        id: notification
+        continue-on-error: true
         env:
           JENKINS_URL: ${{ secrets.JENKINS_URL }}
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
@@ -225,11 +263,13 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -e
+          set -euo pipefail
+          if [ -z "$JENKINS_URL" ] || [ -z "$JENKINS_USER" ] || [ -z "$JENKINS_TOKEN" ]; then
+            echo "::error::Jenkins notification secrets are not configured"
+            exit 1
+          fi
           BASE="${JENKINS_URL%/}"
-          crumb=$(curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" "$BASE/crumbIssuer/api/json" | jq -r '.crumb')
-          curl -fsS -m 15 -u "$JENKINS_USER:$JENKINS_TOKEN" \
-            -H "Jenkins-Crumb: $crumb" \
+          curl -fsS --connect-timeout 10 --max-time 30 -u "$JENKINS_USER:$JENKINS_TOKEN" \
             -X POST "$BASE/job/MCTP-Notify/buildWithParameters" \
             --data-urlencode "REPO=MCTP-API" \
             --data-urlencode "STATUS=failure" \
@@ -237,4 +277,8 @@ jobs:
             --data-urlencode "BRANCH=$BRANCH" \
             --data-urlencode "PR=$PR_NUMBER" \
             --data-urlencode "URL=$BUILD_URL" \
-            --data-urlencode "DETAILS=GitHub Actions 构建失败" || true
+            --data-urlencode "DETAILS=GitHub Actions 构建失败"
+
+      - name: Report notification failure
+        if: always() && steps.notification.outcome == 'failure'
+        run: echo "::warning::Jenkins notification failed; see the notification step logs"

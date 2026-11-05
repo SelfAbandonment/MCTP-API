@@ -11,3 +11,13 @@ __pycache__
 .showdoc_cache.json
 staticfiles
 media
+.coverage
+.coverage.*
+coverage.xml
+TEST-*.xml
+contract-*.md
+contract-status.txt
+base.yaml
+revision.yaml
+schema.yaml
+revision-schema
