@@ -209,3 +209,32 @@ jobs:
           context: .
           push: false
           tags: mctp-api:production-${{ github.sha }}
+
+  notify:
+    if: always() && contains(needs.*.result, 'failure')
+    needs: [lint, test, schema, contract, docker, production]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify Jenkins
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          BASE="${JENKINS_URL%/}"
+          crumb=$(curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" "$BASE/crumbIssuer/api/json" | jq -r '.crumb')
+          curl -fsS -m 15 -u "$JENKINS_USER:$JENKINS_TOKEN" \
+            -H "Jenkins-Crumb: $crumb" \
+            -X POST "$BASE/job/MCTP-Notify/buildWithParameters" \
+            --data-urlencode "REPO=MCTP-API" \
+            --data-urlencode "STATUS=failure" \
+            --data-urlencode "TITLE=MCTP-API CI 失败" \
+            --data-urlencode "BRANCH=$BRANCH" \
+            --data-urlencode "PR=$PR_NUMBER" \
+            --data-urlencode "URL=$BUILD_URL" \
+            --data-urlencode "DETAILS=GitHub Actions 构建失败" || true
