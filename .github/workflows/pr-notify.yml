@@ -1,0 +1,93 @@
+name: PR Event Notify
+
+on:
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  notify:
+    if: >-
+      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       !github.event.comment.user.bot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body || '' }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            URL="${{ github.event.review.html_url }}"
+            EVENT=pr_review
+            STATUS=approved
+            TITLE="MCTP-API PR #${PR_NUMBER} 已通过"
+            DETAILS="审核通过：${{ github.event.review.user.login }}"
+          else
+            PR_NUMBER="${{ github.event.issue.number }}"
+            URL="${{ github.event.comment.html_url }}"
+            EVENT=pr_comment
+            STATUS=comment
+            TITLE="MCTP-API PR #${PR_NUMBER} 有新评论"
+            DETAILS="评论：${{ github.event.comment.user.login }}：$(printf '%s' "$COMMENT_BODY" | tr '\n' ' ' | cut -c1-160)"
+          fi
+
+          info=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          ACTOR=$(jq -r .user.login <<<"$info")
+          BRANCH=$(jq -r .head.ref <<<"$info")
+          COMMIT=$(jq -r '.head.sha[0:7]' <<<"$info")
+
+          {
+            echo "number=$PR_NUMBER"
+            echo "url=$URL"
+            echo "event=$EVENT"
+            echo "status=$STATUS"
+            echo "title=$TITLE"
+            echo "details=$DETAILS"
+            echo "actor=$ACTOR"
+            echo "branch=$BRANCH"
+            echo "commit=$COMMIT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Jenkins
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          EVENT: ${{ steps.pr.outputs.event }}
+          STATUS: ${{ steps.pr.outputs.status }}
+          TITLE: ${{ steps.pr.outputs.title }}
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          ACTOR: ${{ steps.pr.outputs.actor }}
+          COMMIT: ${{ steps.pr.outputs.commit }}
+          URL: ${{ steps.pr.outputs.url }}
+          DETAILS: ${{ steps.pr.outputs.details }}
+        run: |
+          set -euo pipefail
+          BASE="${JENKINS_URL%/}"
+          crumb=$(curl -fsS -u "$JENKINS_USER:$JENKINS_TOKEN" "$BASE/crumbIssuer/api/json" | jq -r '.crumb')
+          curl -fsS -m 20 -u "$JENKINS_USER:$JENKINS_TOKEN" \
+            -H "Jenkins-Crumb: $crumb" \
+            -X POST "$BASE/job/MCTP-Notify/buildWithParameters" \
+            --data-urlencode "REPO=MCTP-API" \
+            --data-urlencode "EVENT=$EVENT" \
+            --data-urlencode "STATUS=$STATUS" \
+            --data-urlencode "TITLE=$TITLE" \
+            --data-urlencode "BRANCH=$BRANCH" \
+            --data-urlencode "PR=$PR_NUMBER" \
+            --data-urlencode "ACTOR=$ACTOR" \
+            --data-urlencode "COMMIT=$COMMIT" \
+            --data-urlencode "URL=$URL" \
+            --data-urlencode "DETAILS=$DETAILS"
