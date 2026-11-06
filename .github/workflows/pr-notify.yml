@@ -43,7 +43,12 @@ jobs:
           info=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
           ACTOR=$(jq -r .user.login <<<"$info")
           BRANCH=$(jq -r .head.ref <<<"$info")
-          COMMIT=$(jq -r '.head.sha[0:7]' <<<"$info")
+          BASE_REF=$(jq -r '.base.ref // ""' <<<"$info")
+          if [ "$EVENT" = "pr_merge" ]; then
+            COMMIT=$(jq -r '.merge_commit_sha[0:7]' <<<"$info")
+          else
+            COMMIT=$(jq -r '.head.sha[0:7]' <<<"$info")
+          fi
 
           {
             echo "number=$PR_NUMBER"
@@ -55,6 +60,7 @@ jobs:
             echo "actor=$ACTOR"
             echo "branch=$BRANCH"
             echo "commit=$COMMIT"
+            echo "base_ref=$BASE_REF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Trigger Jenkins
@@ -69,6 +75,7 @@ jobs:
           BRANCH: ${{ steps.pr.outputs.branch }}
           ACTOR: ${{ steps.pr.outputs.actor }}
           COMMIT: ${{ steps.pr.outputs.commit }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
           URL: ${{ steps.pr.outputs.url }}
           DETAILS: ${{ steps.pr.outputs.details }}
         run: |
@@ -86,5 +93,6 @@ jobs:
             --data-urlencode "PR=$PR_NUMBER" \
             --data-urlencode "ACTOR=$ACTOR" \
             --data-urlencode "COMMIT=$COMMIT" \
+            --data-urlencode "BASE_REF=$BASE_REF" \
             --data-urlencode "URL=$URL" \
             --data-urlencode "DETAILS=$DETAILS"
