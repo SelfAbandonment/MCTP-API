@@ -1,6 +1,8 @@
 name: PR Event Notify
 
 on:
+  pull_request:
+    types: [closed]
   pull_request_review:
     types: [submitted]
   issue_comment:
@@ -13,6 +15,7 @@ permissions:
 jobs:
   notify:
     if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
@@ -27,7 +30,14 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body || '' }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            URL="${{ github.event.pull_request.html_url }}"
+            EVENT=pr_merge
+            STATUS=merged
+            TITLE="MCTP-API PR #${PR_NUMBER} 已合并"
+            DETAILS="合并：${{ github.event.pull_request.merged_by.login || github.actor }}"
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
             PR_NUMBER="${{ github.event.pull_request.number }}"
             URL="${{ github.event.review.html_url }}"
             EVENT=pr_review
