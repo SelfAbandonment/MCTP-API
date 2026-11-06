@@ -360,6 +360,7 @@ jobs:
             --data-urlencode "BRANCH=$BRANCH" \
             --data-urlencode "PR=$PR_NUMBER" \
             --data-urlencode "ACTOR=$ACTOR" \
+            --data-urlencode "COMMIT=${GITHUB_SHA:0:7}" \
             --data-urlencode "URL=$BUILD_URL" \
             --data-urlencode "DETAILS=$DETAILS"
 
