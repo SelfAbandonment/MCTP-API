@@ -5,8 +5,6 @@ on:
     types: [closed]
   pull_request_review:
     types: [submitted]
-  issue_comment:
-    types: [created]
 
 permissions:
   contents: read
@@ -16,10 +14,7 @@ jobs:
   notify:
     if: >-
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
-      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       !github.event.comment.user.bot)
+      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -27,7 +22,6 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMENT_BODY: ${{ github.event.comment.body || '' }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -44,13 +38,6 @@ jobs:
             STATUS=approved
             TITLE="MCTP-API PR #${PR_NUMBER} 已通过"
             DETAILS="审核通过：${{ github.event.review.user.login }}"
-          else
-            PR_NUMBER="${{ github.event.issue.number }}"
-            URL="${{ github.event.comment.html_url }}"
-            EVENT=pr_comment
-            STATUS=comment
-            TITLE="MCTP-API PR #${PR_NUMBER} 有新评论"
-            DETAILS="评论：${{ github.event.comment.user.login }}：$(printf '%s' "$COMMENT_BODY" | tr '\n' ' ' | cut -c1-160)"
           fi
 
           info=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")

@@ -328,13 +328,8 @@ jobs:
               status=fixed
               title="MCTP-API CI 已恢复"
               notification_details="此前失败的 CI 检查已通过"
-            elif [ "$GITHUB_EVENT_NAME" = "push" ] &&
-                 { [ "$BRANCH" = "main" ] || [ "$BRANCH" = "develop" ]; }; then
-              status=success
-              title="MCTP-API CI 通过"
-              notification_details="所有必需检查通过"
             else
-              echo "此事件无需发送成功通知"
+              echo "仅通知失败和恢复，跳过成功"
               exit 0
             fi
           fi
